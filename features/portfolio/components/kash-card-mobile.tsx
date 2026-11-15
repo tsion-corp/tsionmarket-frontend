@@ -1,5 +1,7 @@
 "use client";
 
+import { useIntertrainKash } from "@/features/portfolio/hooks/use-intertrain-kash";
+import { useAppModals } from "@/components/layout/modals/app-modals";
 import { WskAddressPill } from "@/features/portfolio/components/wsk-address-pill";
 import { useTranslations } from "next-intl";
 import { openSignIn } from "@/hooks/use-sign-in";
@@ -65,17 +67,24 @@ interface KashCardMobileProps {
 export function KashCardMobile({ onBuy, onSend, onConvert, onHistory }: KashCardMobileProps) {
   const t = useTranslations("kash");
   const tAuth = useTranslations("auth");
-  const actionCount = 1 + Number(KASH_SEND_ENABLED) + Number(KASH_BUY_ENABLED);
+  const ik = useIntertrainKash();
+  const modals = useAppModals();
+  // With the new wallet Kash is native WSK: only Add WSK applies for now (no send or convert).
+  const actionCount = ik.active ? 1 : 1 + Number(KASH_SEND_ENABLED) + Number(KASH_BUY_ENABLED);
   const { data: account, isError, signedOut, walletMissing } = useKashAccount();
   const { data: status } = useKashStatus();
 
   // An unknown balance must never render as zero: someone who holds KASH would
   // read "0 KASH+" as their money gone, and loading/no-wallet/error all leave
   // account undefined. Distinguish those states instead, like the desktop card.
-  const unavailable = !account && !signedOut && (isError || walletMissing);
-  const loading = !account && !signedOut && !unavailable;
+  const unavailable = ik.active
+    ? ik.unavailable
+    : !account && !signedOut && (isError || walletMissing);
+  const loading = ik.active ? ik.loading : !account && !signedOut && !unavailable;
 
-  const balanceDisplay = formatKashAmount(account?.balance ?? "0");
+  const balanceDisplay = ik.active
+    ? (ik.balance ?? "0")
+    : formatKashAmount(account?.balance ?? "0");
   const unitPrice = status?.price.kashPriceUsd;
 
   return (
@@ -149,9 +158,10 @@ export function KashCardMobile({ onBuy, onSend, onConvert, onHistory }: KashCard
                   <span className="tnum">${unitPrice}</span>
                 </div>
               )}
-              <WskAddressPill className="mt-[3cqw] max-w-[88%]" />
             </>
           )}
+          {/* Outside the balance states: shows while loading, failed or locked too. */}
+          {!signedOut || ik.active ? <WskAddressPill className="mt-[3cqw] max-w-[88%]" /> : null}
         </div>
 
         {/* Actions, above the cloud bank. Three across on a phone rather than
@@ -162,7 +172,7 @@ export function KashCardMobile({ onBuy, onSend, onConvert, onHistory }: KashCard
         <div className={`grid gap-[1.9cqw] ${ACTION_COLUMNS[actionCount]}`}>
           {KASH_BUY_ENABLED ? (
             <button
-              onClick={onBuy}
+              onClick={ik.active ? modals.openFunds : onBuy}
               className="flex min-w-0 cursor-pointer items-center justify-center gap-[1.4cqw] rounded-full bg-white px-[1.5cqw] py-[14px] text-[clamp(11px,4.1cqw,15px)] font-semibold text-black shadow-[0_1.6px_3.3px_rgba(90,60,0,0.18)] transition-transform active:scale-[0.98]"
             >
               <ArrowDownGlyph className="h-[3.7cqw] w-[3.7cqw]" />
@@ -170,7 +180,7 @@ export function KashCardMobile({ onBuy, onSend, onConvert, onHistory }: KashCard
             </button>
           ) : null}
           {/* Ink on the card's own gold, so Buy stays the one bright pill. */}
-          {KASH_SEND_ENABLED ? (
+          {KASH_SEND_ENABLED && !ik.active ? (
             <button
               onClick={onSend}
               className="flex min-w-0 cursor-pointer items-center justify-center gap-[1.4cqw] rounded-full border border-black/20 bg-black/[0.07] px-[1.5cqw] py-[14px] text-[clamp(11px,4.1cqw,15px)] font-semibold text-black transition-transform active:scale-[0.98]"
@@ -179,13 +189,15 @@ export function KashCardMobile({ onBuy, onSend, onConvert, onHistory }: KashCard
               {t("send")}
             </button>
           ) : null}
-          <button
-            onClick={onConvert}
-            className="flex min-w-0 cursor-pointer items-center justify-center gap-[1.4cqw] rounded-full bg-black px-[1.5cqw] py-[14px] text-[clamp(11px,4.1cqw,15px)] font-semibold text-white shadow-[0_1.6px_3.3px_rgba(0,0,0,0.28)] transition-transform active:scale-[0.98]"
-          >
-            <ArrowsLeftRightGlyph className="h-[3.7cqw] w-[3.7cqw]" />
-            {t("convert")}
-          </button>
+          {ik.active ? null : (
+            <button
+              onClick={onConvert}
+              className="flex min-w-0 cursor-pointer items-center justify-center gap-[1.4cqw] rounded-full bg-black px-[1.5cqw] py-[14px] text-[clamp(11px,4.1cqw,15px)] font-semibold text-white shadow-[0_1.6px_3.3px_rgba(0,0,0,0.28)] transition-transform active:scale-[0.98]"
+            >
+              <ArrowsLeftRightGlyph className="h-[3.7cqw] w-[3.7cqw]" />
+              {t("convert")}
+            </button>
+          )}
         </div>
       </div>
     </div>

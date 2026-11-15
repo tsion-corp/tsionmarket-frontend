@@ -8,6 +8,8 @@ import { CopyButton } from "@/components/ui/copy-button";
 import { SyncingValue } from "@/components/ui/syncing-value";
 import { reverseResolveArkAddress } from "@/lib/bns/api";
 import { AddToMetaMaskButton } from "@/features/portfolio/components/add-to-metamask-button";
+import { useIntertrainKash } from "@/features/portfolio/hooks/use-intertrain-kash";
+import { useAppModals } from "@/components/layout/modals/app-modals";
 import { WskAddressPill } from "@/features/portfolio/components/wsk-address-pill";
 import { useKashSyncing } from "@/features/portfolio/hooks/use-kash-sync";
 import {
@@ -93,10 +95,15 @@ export function KashCard({
   // An unknown balance must never render as zero: someone who holds KASH would
   // read that as their money gone, and once the "0" fallback is applied the two
   // states are indistinguishable. Say which one this is instead.
-  const unavailable = !account && !signedOut && (isError || walletMissing);
-  const loading = !account && !signedOut && !unavailable;
+  const ik = useIntertrainKash();
+  const modals = useAppModals();
+  const unavailable = ik.active
+    ? ik.unavailable
+    : !account && !signedOut && (isError || walletMissing);
+  const loading = ik.active ? ik.loading : !account && !signedOut && !unavailable;
 
-  const balance = account?.balance ?? "0";
+  // With the new wallet, Kash is native WSK: one for one, so the balance is its own dollar value.
+  const balance = ik.active ? (ik.balance ?? "0") : (account?.balance ?? "0");
 
   const balanceDisplay = formatKashAmount(balance);
   // Step the type down as the number grows so a six-figure balance stays on one
@@ -111,13 +118,13 @@ export function KashCard({
       : balanceDisplay.length > 9
         ? "text-[clamp(22px,2.35vw,44px)]"
         : "text-[clamp(28px,3.15vw,60px)]";
-  const balanceUsd = account?.balanceUsd ?? "0";
-  const gateMet = account?.gate.met ?? false;
+  const balanceUsd = ik.active ? balance : (account?.balanceUsd ?? "0");
+  const gateMet = ik.active ? true : (account?.gate.met ?? false);
   const shortfall = account?.gate.shortfall ?? "0";
   const progress = account ? gateProgress(account) : 0;
 
   // Claimable, not cumulative — see KashAccount.week.
-  const unclaimed = account?.week.unclaimed ?? "0";
+  const unclaimed = ik.active ? "0" : (account?.week.unclaimed ?? "0");
   // What the claim actually pays out. Falls back to the points figure only if
   // the price is unavailable — never renders an empty or NaN amount.
   const hasClaimable = Number(unclaimed) > 0;
@@ -284,10 +291,11 @@ export function KashCard({
                 <CopyButton value={arkName} size="sm" tone="ink" toastMessage={tc("copied")} />
               </div>
             ) : null}
-            {/* The new wallet's Intertrain address, where this card's Kash is received. */}
-            <WskAddressPill className="mt-2.5" />
           </>
         )}
+        {/* The new wallet's Intertrain address, where this card's Kash is received. Outside the
+            balance states: it shows whether the balance is loading, failed or locked. */}
+        {!signedOut || ik.active ? <WskAddressPill className="mt-2.5" /> : null}
       </div>
 
       {/* The design runs the card's actions the full width, so they share the
@@ -303,7 +311,7 @@ export function KashCard({
       <div className="mt-[24px] flex flex-wrap gap-[10.23px] sm:ml-[2.18px]">
         {KASH_BUY_ENABLED ? (
           <button
-            onClick={onBuy}
+            onClick={ik.active ? modals.openFunds : onBuy}
             className="ws-pressable flex min-h-[52.41px] flex-1 basis-[121.73px] cursor-pointer items-center justify-center gap-[6px] rounded-full border-[1.92px] border-[#FFD52D] bg-white px-[22px] py-[13px] font-serif text-[16px] leading-[24.92px] font-medium whitespace-nowrap text-black"
           >
             {/* Buy brings Kash IN, so the arrow points down into the balance,
@@ -316,7 +324,7 @@ export function KashCard({
             with a balance, in the order you would do them. Ink on the card's
             own gold rather than a third fill, so Buy stays the one bright
             pill and the row does not read as three equal shouts. */}
-        {KASH_SEND_ENABLED ? (
+        {KASH_SEND_ENABLED && !ik.active ? (
           <button
             onClick={onSend}
             className="ws-pressable flex min-h-[52.41px] flex-1 basis-[121.73px] cursor-pointer items-center justify-center gap-[6px] rounded-full border-[1.92px] border-black/25 bg-black/[0.07] px-[22px] py-[13px] font-serif text-[16px] leading-[24.92px] font-medium whitespace-nowrap text-black"
@@ -327,13 +335,15 @@ export function KashCard({
             {t("send")}
           </button>
         ) : null}
-        <button
-          onClick={onConvert}
-          className="ws-pressable flex min-h-[52.41px] flex-1 basis-[147.09px] cursor-pointer items-center justify-center gap-[10.23px] rounded-full border-[1.28px] border-white/14 bg-black px-[22px] py-[13px] font-serif text-[16px] leading-[24.92px] font-medium whitespace-nowrap text-white"
-        >
-          <ButtonIcon src="/market/kash-icon-convert.svg" />
-          {t("convert")}
-        </button>
+        {ik.active ? null : (
+          <button
+            onClick={onConvert}
+            className="ws-pressable flex min-h-[52.41px] flex-1 basis-[147.09px] cursor-pointer items-center justify-center gap-[10.23px] rounded-full border-[1.28px] border-white/14 bg-black px-[22px] py-[13px] font-serif text-[16px] leading-[24.92px] font-medium whitespace-nowrap text-white"
+          >
+            <ButtonIcon src="/market/kash-icon-convert.svg" />
+            {t("convert")}
+          </button>
+        )}
       </div>
 
       {/* Points section — parked until revenue events feed the engine: a
