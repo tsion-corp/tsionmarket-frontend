@@ -23,8 +23,6 @@ import {
 // A user with $0 and four years of history has the most to lose by never
 // linking. Once linked, only money PROVEN to still sit on the old wallet
 // brings the offer back — see offerMigration.
-let lastLoggedLine = "";
-
 export function useOfferMigration(): boolean {
   return useOfferMigrationState().offer;
 }
@@ -112,10 +110,9 @@ export function useOfferMigrationState(): { offer: boolean; deciding: boolean } 
     ` old wallet on chain: ${!linked ? "not read (not linked)" : walletFunds.isError ? "read failed" : walletFunds.data === undefined ? "probing" : walletFunds.data === null ? "partial read" : walletFunds.data.worthMoving ? `$${walletFunds.data.usd.toFixed(2)} left -> proven` : walletFunds.data.hasFunds ? `dust only ($${walletFunds.data.usd.toFixed(2)}) -> not proven` : "empty"},` +
     ` directory: ${knownLinked ? "skipped (known linked)" : legacy.has ? "legacy account found" : legacy.certain ? "definitely no legacy account" : "no legacy account (unconfirmed)"}]`;
   // This hook renders dozens of times; say it once per distinct answer.
-  if (line !== lastLoggedLine) {
-    lastLoggedLine = line;
+  useEffect(() => {
     console.log(line);
-  }
+  }, [line]);
   return { offer, deciding };
 }
 
