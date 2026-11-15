@@ -17,7 +17,7 @@ import { AddressBarReferral } from "@/components/layout/address-bar-referral";
 import { SignInModalHost } from "@/components/auth/sign-in-modal-host";
 import { FundsModalHost } from "@/components/layout/funds-modal-host";
 import { ClarityIdentity } from "@/components/providers/clarity-identity";
-import { CustomWalletBanner } from "@/components/providers/custom-wallet-banner";
+import { CustomWalletBanner } from "@/components/layout/custom-wallet-banner";
 // Deep import, not the barrel, for the reason given for the casino import
 // below: this provider is on every session route.
 import { DepositBalanceRefresh } from "@/features/activity/components/deposit-balance-refresh";
