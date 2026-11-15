@@ -76,9 +76,18 @@ describe("CreateWallet", () => {
     // Wrong groups keep it closed.
     boxes.forEach((box) => fireEvent.change(box, { target: { value: "wrong" } }));
     expect(save).toBeDisabled();
+    // Each wrong group says so, instead of leaving a dead button.
+    expect(screen.getAllByText(/doesn.t match group/i)).toHaveLength(3);
+    boxes.forEach((box) => expect(box).toHaveAttribute("aria-invalid", "true"));
+    // A group typed one character off (6 -> G) is caught too.
+    const first = boxes[0]!;
+    const typo = groups[position(first)]!.replace(/^./, (c) => (c === "G" ? "H" : "G"));
+    fireEvent.change(first, { target: { value: typo } });
+    expect(first).toHaveAttribute("aria-invalid", "true");
     // The right ones open it, typed any way.
     boxes.forEach((box) => fireEvent.change(box, { target: { value: groups[position(box)]! } }));
     expect(save).toBeEnabled();
+    expect(screen.queryByText(/doesn.t match group/i)).not.toBeInTheDocument();
     fireEvent.click(save);
 
     await waitFor(() => expect(onCreated).toHaveBeenCalledTimes(1));

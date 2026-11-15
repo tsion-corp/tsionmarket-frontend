@@ -215,23 +215,44 @@ export function CreateWallet({
             </p>
           </div>
           <div className="flex flex-col gap-3">
-            {positions.map((position, i) => (
-              <label key={position} className="flex flex-col gap-1.5 text-[13px] text-white/60">
-                Group {position + 1}
-                <input
-                  type="text"
-                  autoComplete="off"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  className={FIELD}
-                  value={answers[i] ?? ""}
-                  onChange={(e) =>
-                    setAnswers((prev) => prev.map((value, j) => (j === i ? e.target.value : value)))
-                  }
-                />
-              </label>
-            ))}
+            {positions.map((position, i) => {
+              const answer = answers[i] ?? "";
+              const typedFully = answer.replace(/[\s-]/g, "").length >= 4;
+              const right =
+                wallet !== null &&
+                confirmSecretGroups(wallet.recoverySecret.split("-"), [position], [answer]);
+              const wrong = typedFully && !right;
+              return (
+                <label key={position} className="flex flex-col gap-1.5 text-[13px] text-white/60">
+                  Group {position + 1}
+                  <input
+                    type="text"
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    maxLength={5}
+                    aria-invalid={wrong}
+                    className={cn(
+                      FIELD,
+                      wrong && "border-red-300/60 focus:border-red-300/80",
+                      right && "border-emerald-300/50 focus:border-emerald-300/70"
+                    )}
+                    value={answer}
+                    onChange={(e) =>
+                      setAnswers((prev) =>
+                        prev.map((value, j) => (j === i ? e.target.value : value))
+                      )
+                    }
+                  />
+                  {wrong ? (
+                    <span role="alert" className="text-[12.5px] text-red-200">
+                      Doesn&apos;t match group {position + 1}. Check it against your saved copy.
+                    </span>
+                  ) : null}
+                </label>
+              );
+            })}
           </div>
           <button type="button" className={PRIMARY} disabled={!confirmed || busy} onClick={save}>
             {busy ? "Saving…" : "Save my wallet"}

@@ -23,6 +23,8 @@ import {
 // A user with $0 and four years of history has the most to lose by never
 // linking. Once linked, only money PROVEN to still sit on the old wallet
 // brings the offer back — see offerMigration.
+let lastLoggedLine = "";
+
 export function useOfferMigration(): boolean {
   return useOfferMigrationState().offer;
 }
@@ -102,14 +104,18 @@ export function useOfferMigrationState(): { offer: boolean; deciding: boolean } 
     !offer &&
     (status.isPending || legacy.pending);
 
-  console.log(
+  const line =
     `[migrate] offer migrate-to-2.0: ${offer ? "YES" : "no"}${deciding ? " (deciding)" : ""}` +
-      ` [linked: ${knownLinked ? "yes (remembered on this device)" : status.isError ? "service errored" : statusData === undefined ? "loading" : (statusData.linked ?? "service could not say")},` +
-      ` done on this device: ${complete}, privy keys here: ${localHistory},` +
-      ` service reports funds: ${statusData?.hasLegacyFunds ?? "unknown"},` +
-      ` old wallet on chain: ${!linked ? "not read (not linked)" : walletFunds.isError ? "read failed" : walletFunds.data === undefined ? "probing" : walletFunds.data === null ? "partial read" : walletFunds.data.worthMoving ? `$${walletFunds.data.usd.toFixed(2)} left -> proven` : walletFunds.data.hasFunds ? `dust only ($${walletFunds.data.usd.toFixed(2)}) -> not proven` : "empty"},` +
-      ` directory: ${knownLinked ? "skipped (known linked)" : legacy.has ? "legacy account found" : legacy.certain ? "definitely no legacy account" : "no legacy account (unconfirmed)"}]`
-  );
+    ` [linked: ${knownLinked ? "yes (remembered on this device)" : status.isError ? "service errored" : statusData === undefined ? "loading" : (statusData.linked ?? "service could not say")},` +
+    ` done on this device: ${complete}, privy keys here: ${localHistory},` +
+    ` service reports funds: ${statusData?.hasLegacyFunds ?? "unknown"},` +
+    ` old wallet on chain: ${!linked ? "not read (not linked)" : walletFunds.isError ? "read failed" : walletFunds.data === undefined ? "probing" : walletFunds.data === null ? "partial read" : walletFunds.data.worthMoving ? `$${walletFunds.data.usd.toFixed(2)} left -> proven` : walletFunds.data.hasFunds ? `dust only ($${walletFunds.data.usd.toFixed(2)}) -> not proven` : "empty"},` +
+    ` directory: ${knownLinked ? "skipped (known linked)" : legacy.has ? "legacy account found" : legacy.certain ? "definitely no legacy account" : "no legacy account (unconfirmed)"}]`;
+  // This hook renders dozens of times; say it once per distinct answer.
+  if (line !== lastLoggedLine) {
+    lastLoggedLine = line;
+    console.log(line);
+  }
   return { offer, deciding };
 }
 
