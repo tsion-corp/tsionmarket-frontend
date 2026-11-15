@@ -294,7 +294,7 @@ const HOW_TO_STEPS: { title: string; body: string }[] = [
   },
   {
     title: "Copy the address we show you",
-    body: "The address is where your money goes. Tap Copy Address, or scan the square code with the app you are sending from. The address is yours and you can use it again any time.",
+    body: "The address is where your money goes. Tap Copy Address, or scan the square code with the app you are sending from.",
   },
   {
     title: "Send from the other app",
