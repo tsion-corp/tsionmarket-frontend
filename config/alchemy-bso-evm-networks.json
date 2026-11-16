@@ -17,9 +17,7 @@
     "network": "base-mainnet",
     "policyNetwork": "BASE_MAINNET",
     "alchemyHost": "base-mainnet.g.alchemy.com",
-    "chainKey": "base",
-    "sponsorshipMode": "bso",
-    "gasPolicy": true
+    "chainKey": "base"
   },
   {
     "network": "base-sepolia",

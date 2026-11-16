@@ -21,7 +21,6 @@ import {
 // path is the one that completes.
 const SPONSORED_MAINNETS = [
   "eth-mainnet",
-  "base-mainnet",
   "arb-mainnet",
   "berachain-mainnet",
   "bnb-mainnet",
@@ -57,6 +56,9 @@ describe("gas policy coverage", () => {
       "eth-sepolia",
       "base-sepolia",
       "polygon-amoy",
+      // Base's own policy came off (config/alchemy-bso-evm-networks.json):
+      // every send there is user-paid now, like the chains below it.
+      "base-mainnet",
       // The API key has no access to these two.
       "arbnova-mainnet",
       "polynomial-mainnet",
@@ -78,8 +80,9 @@ describe("gas policy coverage", () => {
   });
 
   it("answers by chain id too, for the send path", () => {
-    expect(hasGasPolicyForChainId(8453)).toBe(true);
     expect(hasGasPolicyForChainId(42161)).toBe(true);
+    // Base (8453): no policy now that its own gasPolicy came off.
+    expect(hasGasPolicyForChainId(8453)).toBe(false);
     expect(hasGasPolicyForChainId(999)).toBe(false);
     expect(hasGasPolicyForChainId(11155111)).toBe(false);
   });
