@@ -16,6 +16,7 @@ const NATIVE_GAS_BUFFER: Record<string, number> = {
   "eth-mainnet": 0.0003,
   "arb-mainnet": 0.0003,
   "opt-mainnet": 0.0003,
+  "base-mainnet": 0.0003,
   "polygon-mainnet": 0.01,
   // A simple HyperEVM transfer costs a small fraction of a cent, but HYPE is
   // worth tens of dollars, so the percentage fallback below would hold back
