@@ -19,6 +19,7 @@ import { FundsModalHost } from "@/components/layout/funds-modal-host";
 import { ClarityIdentity } from "@/components/providers/clarity-identity";
 import { CustomWalletBanner } from "@/components/layout/custom-wallet-banner";
 import { WalletPriorityHost } from "@/components/layout/wallet-priority-host";
+import { GasTopUpHost } from "@/components/layout/gas-topup-host";
 
 // Deep import, not the barrel, for the reason given for the casino import
 // below: this provider is on every session route.
@@ -209,6 +210,7 @@ export function SessionProviders({ children }: { children: React.ReactNode }) {
               every action that needs a session. */}
           <CustomWalletBanner />
           <WalletPriorityHost />
+          <GasTopUpHost />
           <LegacyFundsNoticeHost />
           <SignInModalHost />
           <FundsModalHost />

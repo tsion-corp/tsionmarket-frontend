@@ -32,6 +32,7 @@ import { KashConvertModal } from "@/features/portfolio/components/kash-convert-m
 import { KashHistoryModal } from "@/features/portfolio/components/kash-history-modal";
 import { KashUpgradeModal } from "@/features/portfolio/components/kash-upgrade-modal";
 import { useAppModals } from "@/components/layout/modals/app-modals";
+import { GasBalanceNotice } from "@/features/portfolio/components/gas-balance-notice";
 import { KashSendModal } from "@/features/portfolio/components/kash-send-modal";
 import { KashSendIntertrainModal } from "@/features/portfolio/components/kash-send-intertrain-modal";
 import { useIntertrainKash } from "@/features/portfolio/hooks/use-intertrain-kash";
@@ -445,6 +446,8 @@ export function PortfolioView({
           onUpgrade={() => setKashModal("upgrade")}
         />
       </div>
+
+      <GasBalanceNotice />
 
       {/* The promo rail, as the Market design draws the desktop head: below the
           two cards, a carousel of banners. Desktop-only — the phone carries its

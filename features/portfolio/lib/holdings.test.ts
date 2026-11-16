@@ -56,8 +56,12 @@ describe("selectHoldings", () => {
     const tokens = [
       token({ symbol: "USDC", network: "base-mainnet" }),
       token({ symbol: "USDT", network: "base-mainnet" }),
+      // Base is unsponsored now, so USDT needs a native balance beside it to
+      // count as sellable — the point of this fixture is the deposit-float
+      // rule, not that case (covered in "selectHoldings on unsponsored chains" below).
+      token({ symbol: "ETH", network: "base-mainnet", address: null }),
     ];
-    expect(selectHoldings(tokens).map((t) => t.symbol)).toEqual(["USDT"]);
+    expect(selectHoldings(tokens).map((t) => t.symbol)).toEqual(["USDT", "ETH"]);
   });
 
   it("keeps bought assets: USDT, RWA, native gas, and non-Base USDC", () => {
@@ -203,7 +207,9 @@ describe("selectHoldings on unsponsored chains", () => {
   });
 
   it("keeps sponsored-chain holdings with no native balance", () => {
-    const usdt = token({ symbol: "USDT", network: "base-mainnet" });
+    // eth-mainnet, not Base: Base left the sponsored set once its own gas
+    // policy came off (config/alchemy-bso-evm-networks.json).
+    const usdt = token({ symbol: "USDT", network: "eth-mainnet" });
     expect(selectHoldings([usdt])).toEqual([usdt]);
   });
 

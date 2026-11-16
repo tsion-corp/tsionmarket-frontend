@@ -32,7 +32,7 @@ const NATIVE_GAS_PLACEHOLDER = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 // which never matches the master eligibility set's all-zero key — so
 // supportsStaticAddress comes back false and native ETH silently disappears
 // from the deposit token picker on every EVM chain, Ethereum included.
-const EVM_NATIVE_ETH = "0x0000000000000000000000000000000000000000";
+export const EVM_NATIVE_ETH = "0x0000000000000000000000000000000000000000";
 
 // Maps a destination currency (from /deposit/destinations) to the id the quote
 // endpoint accepts. Only native SOL needs it today.
