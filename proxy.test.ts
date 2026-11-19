@@ -2,6 +2,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { gate } from "./proxy";
 
+// The dashboard lock is a shipped constant. The referral cases below are about
+// an open app, so they run with it off; the lock's own cases turn it on.
+const lock = vi.hoisted(() => ({ on: false }));
+vi.mock("@/lib/dashboard-lock", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/dashboard-lock")>();
+  return {
+    ...actual,
+    get DASHBOARD_LOCKED() {
+      return lock.on;
+    },
+  };
+});
+
 // A shared link carries ?ref=<code> on whatever page it points at. Nothing read
 // it before: only /r/<code> set the cookie, so attaching a code to a market or
 // a game link attributed nobody (kash ADR-0015).
@@ -22,6 +35,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  lock.on = false;
 });
 
 describe("a referral code on a shared link", () => {
@@ -84,5 +98,54 @@ describe("a referral code on a shared link", () => {
     const res = visit("https://tsionark.com/spot");
     expect(res.headers.get("Location")).toBeNull();
     expect(res.cookies.get("ark_ref")).toBeUndefined();
+  });
+});
+
+describe("the dashboard lock", () => {
+  beforeEach(() => {
+    lock.on = true;
+  });
+
+  it("serves the landing page as usual", () => {
+    const res = visit("https://tsionark.com/");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+  });
+
+  it.each(["/dashboard", "/portfolio", "/trade", "/casino/last-standing/274", "/auth"])(
+    "covers %s with the maintenance page, keeping the address",
+    (path) => {
+      const res = visit(`https://tsionark.com${path}`);
+      expect(res.status).toBe(503);
+      expect(res.headers.get("Location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toBe("https://tsionark.com/maintenance");
+      expect(res.headers.get("X-Robots-Tag")).toBe("noindex");
+    }
+  );
+
+  it("leaves the legal pages and the api open", () => {
+    for (const path of ["/privacy", "/terms", "/api/waitlist"]) {
+      const res = visit(`https://tsionark.com${path}`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+    }
+  });
+
+  it("still keeps a referral code from a locked page", () => {
+    const res = visit("https://tsionark.com/prediction?ref=7k4m9x2p");
+    expect(res.status).toBe(503);
+    expect(res.cookies.get("ark_ref")?.value).toBe("7k4m9x2p");
+  });
+
+  it("yields to full maintenance, which closes the landing page too", () => {
+    vi.stubEnv("ALLOW_ACCESS", "false");
+    const res = visit("https://tsionark.com/dashboard");
+    expect(res.headers.get("x-middleware-rewrite")).toBe("https://tsionark.com/");
+  });
+
+  it("yields to the pre-launch redirect", () => {
+    vi.stubEnv("NEXT_PUBLIC_LAUNCH_AT", "2999-01-01T00:00:00Z");
+    const res = visit("https://tsionark.com/dashboard");
+    expect(res.headers.get("Location")).toBe("https://tsionark.com/");
   });
 });

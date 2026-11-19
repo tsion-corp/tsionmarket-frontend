@@ -3321,6 +3321,13 @@
     "contactTitle": "Brauchst du uns vorher?",
     "email": "Support per E-Mail"
   },
+  "dashboardLock": {
+    "eyebrow": "Wartungsarbeiten",
+    "title": "{brand} wird gerade gewartet.",
+    "body": "Die Plattform ist während der Wartungsarbeiten vorübergehend nicht verfügbar. Dein Geld bleibt unberührt, und alles ist genau dort, wo du es gelassen hast, wenn wir zurück sind.",
+    "home": "Zur Startseite",
+    "email": "Support kontaktieren"
+  },
   "waitlist": {
     "countdownTitle": "Der ganze Markt <accent>öffnet gleich.</accent>",
     "countdownSubtitle": "Aktien, Gold, Krypto und Prognosen in einer App, und Ihr Geld bleibt Ihres. Die Türen öffnen sich, wenn die Uhr auf null steht.",

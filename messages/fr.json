@@ -3321,6 +3321,13 @@
     "contactTitle": "Besoin de nous avant ?",
     "email": "Écrire au support"
   },
+  "dashboardLock": {
+    "eyebrow": "Maintenance en cours",
+    "title": "{brand} est en maintenance.",
+    "body": "La plateforme est temporairement indisponible pendant une opération de maintenance. Votre argent n'est pas touché, et tout sera exactement là où vous l'avez laissé à notre retour.",
+    "home": "Retour à l'accueil",
+    "email": "Contacter le support"
+  },
   "waitlist": {
     "countdownTitle": "Tout le marché, <accent>sur le point d'ouvrir.</accent>",
     "countdownSubtitle": "Actions, or, crypto et prédictions dans une seule app, votre argent restant le vôtre. Les portes s'ouvrent quand le compte atteint zéro.",

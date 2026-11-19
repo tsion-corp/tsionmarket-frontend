@@ -1,5 +1,6 @@
 import { clerkMiddleware } from "@clerk/nextjs/server";
 import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
+import { DASHBOARD_LOCKED, isOpenWhileLocked } from "@/lib/dashboard-lock";
 import { isReferralCode } from "@/lib/referral-code";
 
 // The route guard behind the launch gate (see lib/launch-gate.ts). While the
@@ -89,6 +90,17 @@ function referralToStore(request: NextRequest): string | null {
   return normalized;
 }
 
+// The dashboard lock (lib/dashboard-lock.ts) answers like maintenance: the
+// address stays in the bar, the status is 503, and the page is the cover. It
+// rewrites to its own route rather than "/", because "/" is still the live
+// landing page and must not turn into the cover.
+function lockedResponse(request: NextRequest): NextResponse {
+  const response = NextResponse.rewrite(new URL("/maintenance", request.url), { status: 503 });
+  response.headers.set("Retry-After", RETRY_AFTER_SECONDS);
+  response.headers.set("X-Robots-Tag", "noindex");
+  return response;
+}
+
 function route(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
   if (underMaintenance()) {
@@ -96,12 +108,16 @@ function route(request: NextRequest): NextResponse {
     return closedResponse(request);
   }
 
-  if (!beforeLaunch()) return NextResponse.next();
-  if (OPEN_PATHS.has(pathname)) return NextResponse.next();
-  // The query rides along, so a campaign link keeps its tags.
-  const home = new URL("/", request.url);
-  home.search = request.nextUrl.search;
-  return NextResponse.redirect(home);
+  if (beforeLaunch()) {
+    if (OPEN_PATHS.has(pathname)) return NextResponse.next();
+    // The query rides along, so a campaign link keeps its tags.
+    const home = new URL("/", request.url);
+    home.search = request.nextUrl.search;
+    return NextResponse.redirect(home);
+  }
+
+  if (DASHBOARD_LOCKED && !isOpenWhileLocked(pathname)) return lockedResponse(request);
+  return NextResponse.next();
 }
 
 // The gates decide the response; the referral cookie rides on whichever one

@@ -3321,6 +3321,13 @@
     "contactTitle": "Need us before then?",
     "email": "Email support"
   },
+  "dashboardLock": {
+    "eyebrow": "Under maintenance",
+    "title": "{brand} is undergoing maintenance.",
+    "body": "The platform is temporarily unavailable while we carry out maintenance. Your money is untouched, and everything will be exactly where you left it when we're back.",
+    "home": "Back to home",
+    "email": "Email support"
+  },
   "waitlist": {
     "countdownTitle": "The whole market, <accent>about to open.</accent>",
     "countdownSubtitle": "Stocks, gold, crypto and predictions in one app, with your money staying yours. The doors open when the clock hits zero.",

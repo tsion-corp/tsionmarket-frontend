@@ -3321,6 +3321,13 @@
     "contactTitle": "Precisa da gente antes disso?",
     "email": "Falar com o suporte"
   },
+  "dashboardLock": {
+    "eyebrow": "Em manutenção",
+    "title": "A {brand} está em manutenção.",
+    "body": "A plataforma está temporariamente indisponível enquanto realizamos a manutenção. O seu dinheiro está intacto e tudo estará exatamente onde deixou quando voltarmos.",
+    "home": "Voltar ao início",
+    "email": "Falar com o suporte"
+  },
   "waitlist": {
     "countdownTitle": "O mercado inteiro, <accent>prestes a abrir.</accent>",
     "countdownSubtitle": "Ações, ouro, cripto e previsões num só app, com o seu dinheiro sempre seu. As portas abrem quando o relógio chegar a zero.",
