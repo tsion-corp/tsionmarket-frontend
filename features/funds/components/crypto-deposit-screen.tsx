@@ -38,25 +38,60 @@ interface CryptoDepositScreenProps {
 // address per origin token regardless of which chain they send from.
 const POPULAR = ["ethereum", "base", "polygon", "arbitrum", "optimism", "avalanche"];
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function CryptoDepositScreen({
   onBack,
   initialDeposit,
   settleKey = "base",
 }: CryptoDepositScreenProps) {
-  const [originChain, setOriginChain] = useState<DepositChain | null>(null);
-  const [originToken, setOriginToken] = useState<DepositToken | null>(null);
+  const [manualChain, setManualChain] = useState<DepositChain | null>(null);
+  const [manualToken, setManualToken] = useState<DepositToken | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  // Once the user has made any manual choice of their own — picked a chain,
+  // picked a token, or backed out of either — the voice prefill below must
+  // never reassert itself. Without this, backing out of a prefilled token to
+  // pick a different one would just re-select the one being backed out of.
+  const [prefillDismissed, setPrefillDismissed] = useState(false);
 
   const chains = useDepositChains();
+
+  // Voice prefill ("deposit USDC on Solana"): the spoken chain name resolved
+  // against the live list, then the token against that chain's own list.
+  // Derived during render, not stored or applied via an effect — once the
+  // user makes any manual choice, prefillDismissed turns it off for good.
+  // isDepositChain already let anything sane through, so a name that doesn't
+  // match the live catalog just no-ops here, as lib/voice/intent.ts's
+  // DepositPrefill promises.
+  const prefillChain = useMemo(() => {
+    if (prefillDismissed || !initialDeposit || !chains.data) return null;
+    return (
+      chains.data.find((c) => c.name.toLowerCase() === initialDeposit.chain.toLowerCase()) ?? null
+    );
+  }, [prefillDismissed, initialDeposit, chains.data]);
+
+  const originChain = manualChain ?? prefillChain;
   const tokens = useDepositTokens(originChain?.chainId ?? null);
 
-  const resetToken = () => setOriginToken(null);
+  const prefillToken = useMemo(() => {
+    if (prefillDismissed || !initialDeposit?.token || !originChain || !tokens.data) return null;
+    return (
+      tokens.data.find((tk) => tk.symbol.toLowerCase() === initialDeposit.token!.toLowerCase()) ??
+      null
+    );
+  }, [prefillDismissed, initialDeposit, originChain, tokens.data]);
+
+  const originToken = manualToken ?? prefillToken;
+
+  const resetToken = () => {
+    setPrefillDismissed(true);
+    setManualToken(null);
+  };
   // Back out of the token list to the networks. The search box is shared by both
   // steps, so it is cleared on the way: a token name left in it would filter the
   // network list to nothing.
   const resetChain = () => {
-    setOriginChain(null);
+    setPrefillDismissed(true);
+    setManualChain(null);
+    setManualToken(null);
     setSearchQuery("");
   };
   const [showingHelp, setShowingHelp] = useState(false);
@@ -118,8 +153,9 @@ export function CryptoDepositScreen({
 
   const selectChain = (chain: DepositChain) => {
     saveToHistory(chain.chainId);
-    setOriginChain(chain);
-    setOriginToken(null);
+    setPrefillDismissed(true);
+    setManualChain(chain);
+    setManualToken(null);
   };
 
   // Filter chains by search query
@@ -263,7 +299,10 @@ export function CryptoDepositScreen({
               {filteredTokenList.map((tk) => (
                 <button
                   key={`${tk.chainId}:${tk.address}`}
-                  onClick={() => setOriginToken(tk)}
+                  onClick={() => {
+                    setPrefillDismissed(true);
+                    setManualToken(tk);
+                  }}
                   className="-mx-1 flex w-full cursor-pointer items-center gap-3 rounded-xl px-1 py-2 text-left transition-colors hover:bg-white/[0.04]"
                 >
                   <AssetIcon sym={tk.symbol} bg="#26262b" size={34} logo={tk.logoUrl} />
@@ -525,7 +564,9 @@ function DepositAddressView({
         <span className="flex size-4 shrink-0 items-center justify-center rounded-full border border-red-400/50 text-[8px] text-red-400">
           !
         </span>
-        <p className="text-[13px] font-normal text-red-400">Do not send KASH+ to this address.</p>
+        <p className="text-[13px] font-normal text-red-400">
+          Only send {token.symbol} on {chain.name} to this address.
+        </p>
       </div>
 
       {/* Minimum deposit */}

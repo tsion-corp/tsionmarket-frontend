@@ -359,7 +359,7 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
         </span>
         <div className="ws-display mt-4 text-[21px]">{t("failedTitle")}</div>
         <p className="mx-auto mt-2 max-w-[34ch] text-[13.5px] leading-[1.55] font-normal text-white/60">
-          {order?.error ?? t("failedBody")}
+          {order?.error ? friendlyError(order.error, t("failedBody")) : t("failedBody")}
         </p>
         <button
           onClick={() => {

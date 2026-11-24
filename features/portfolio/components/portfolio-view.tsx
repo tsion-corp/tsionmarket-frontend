@@ -24,9 +24,8 @@ import { BalanceReveal } from "@/features/portfolio/components/balance-reveal";
 import Link from "next/link";
 import { PromoCarousel } from "@/components/ui/promo-deck";
 import { PromoBanner, PromoRail } from "@/components/ui/promo-rail";
-import { ARKSTORE_URL, BRAND } from "@/lib/brand";
+import { BRAND } from "@/lib/brand";
 import { SetTheStakeBanner } from "@/features/portfolio/components/set-the-stake-banner";
-import { ArkStoreBanner } from "@/features/portfolio/components/ark-store-banner";
 import { KashBuyModal } from "@/features/portfolio/components/kash-buy-modal";
 import { KashConvertModal } from "@/features/portfolio/components/kash-convert-modal";
 import { KashHistoryModal } from "@/features/portfolio/components/kash-history-modal";
@@ -282,22 +281,12 @@ export function PortfolioView({
     });
   };
 
-  // The ArkStore ticket, first on both strips: the deck a phone swipes and the
-  // rail the desk carries. The store is another deployment, so it is a plain
-  // anchor into a new tab rather than a route.
-  const arkStoreBanner = (
-    <a
-      href={ARKSTORE_URL}
-      target="_blank"
-      rel="noopener noreferrer"
-      aria-label={t("arkStoreAria")}
-      className="block w-full"
-    >
-      <ArkStoreBanner />
-    </a>
-  );
+  // The ArkStore ticket used to lead both strips; the store is paused, so it
+  // is not rendered rather than linking somewhere that doesn't work.
+  // Restoring it is this block (see git history) plus the two render sites
+  // below, nothing else.
 
-  // Ark ID, second on both strips, right behind the store ticket. It used to be
+  // Ark ID, now first on both strips. It used to be
   // a card in the sidebar, which on a phone is a drawer nobody opens: the promo
   // strip is the one surface every device actually shows. Pale fill and ink
   // words so it reads as a name card rather than another coloured ticket, and
@@ -406,7 +395,6 @@ export function PortfolioView({
             own rail under the balance cards below. */}
         <div className="mt-3">
           <PromoCarousel>
-            {arkStoreBanner}
             {arkIdBanner}
             {/* The ticket is presentational; the doorway to the casino lives
                 here at the composition site. Embla suppresses the click after a
@@ -451,7 +439,6 @@ export function PortfolioView({
           own promo strip in the mobile head above. */}
       <div className="mt-3 hidden md:block">
         <PromoRail label={tDiscovery("promoRailCarousel")}>
-          {arkStoreBanner}
           {arkIdBanner}
           {stakeBanner}
           <KashBanner onBuy={buyKash} />

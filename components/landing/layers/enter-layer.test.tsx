@@ -2,7 +2,6 @@ import { render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it } from "vitest";
 import { EnterLayer } from "@/components/landing/layers/enter-layer";
-import { ARKSTORE_URL } from "@/lib/brand";
 import messages from "@/messages/en.json";
 
 // The layer paints hidden until the scroll engine reveals it, so nothing here
@@ -20,17 +19,15 @@ function renderEnter() {
 }
 
 describe("EnterLayer", () => {
-  it("sends the app button to the ArkStore listing in a new tab", () => {
-    renderEnter();
-    const link = linkFor("Get app");
-    expect(link).toHaveAttribute("href", ARKSTORE_URL);
-    expect(link).toHaveAttribute("target", "_blank");
-    expect(link?.getAttribute("rel")).toContain("noopener");
-    expect(link?.className).toContain("capitalize");
-  });
-
-  it("keeps the app button beside the way in", () => {
+  it("has a way in", () => {
     renderEnter();
     expect(linkFor("Get started")).toHaveAttribute("href", "/portfolio");
+  });
+
+  // The ArkStore listing is paused; the CTA that pointed to it is not
+  // rendered rather than linking somewhere that doesn't work.
+  it("does not show an app-store button", () => {
+    renderEnter();
+    expect(screen.queryByText("Get app")).toBeNull();
   });
 });
