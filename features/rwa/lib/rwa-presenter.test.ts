@@ -202,6 +202,7 @@ describe("hasNativeGas", () => {
   });
 
   it("never requires native gas where a gas policy covers the trade", () => {
+    expect(requiresNativeGas("base")).toBe(false);
     expect(requiresNativeGas("polygon")).toBe(false);
     // Solana joined the sponsored set: fee by the platform sponsor, first-time
     // token-account rent by the funding plan's setup leg.
@@ -211,11 +212,11 @@ describe("hasNativeGas", () => {
   // These chains are in the sponsorship registry but hold no Gas Manager
   // policy, so their sends are paid by the user and the wallet does need to
   // hold the native token. Saying otherwise sent people into a bundler
-  // rejection they could not act on. Base re-joined this set once its own
-  // policy came off (config/alchemy-bso-evm-networks.json).
-  it("requires native gas on base now that its policy is off, but no other RWA chain", () => {
-    expect(requiresNativeGas("base")).toBe(true);
-    for (const chain of ["ethereum", "arbitrum", "bsc", "polygon", "solana"] as const) {
+  // rejection they could not act on.
+  // Every RWA chain is sponsored now (ADR-2026-09-07-sponsor-all-evm-mainnets),
+  // so none of them asks the wallet to hold gas first.
+  it("requires native gas on no RWA chain now that the policy covers them all", () => {
+    for (const chain of ["ethereum", "arbitrum", "bsc", "base", "polygon", "solana"] as const) {
       expect(requiresNativeGas(chain), chain).toBe(false);
     }
   });

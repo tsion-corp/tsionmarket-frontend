@@ -202,22 +202,6 @@ describe("only Ethereum, Arbitrum, Base and Solana can move", () => {
   it("plans only those, and lists every other chain greyed out with why", () => {
     const plan = planMove([
       ...everywhere,
-      // Base is no longer sponsored, so its own leg needs a native coin to
-      // pay its fee; without one it would land in `stuck`, not `chains` —
-      // this fixture is about the allowlist, not that gas-availability case
-      // (covered separately below).
-      token({
-        symbol: "ETH",
-        name: "Ether",
-        network: "base-mainnet",
-        address: null,
-        kind: "coin",
-        decimals: 18,
-        balance: 0.001,
-        rawBalance: "1000000000000000",
-        priceUsd: 0,
-        valueUsd: 0,
-      }),
       token({
         symbol: "SOL",
         network: "solana-mainnet",

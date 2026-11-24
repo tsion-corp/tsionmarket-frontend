@@ -61,15 +61,12 @@ describe("buildSweepPlan", () => {
   });
 
   it("marks EVM chains as batched and Solana as sequential", () => {
-    // eth-mainnet, not Base: Base sends are user-paid now that its own gas
-    // policy came off (config/alchemy-bso-evm-networks.json); that case is
-    // its own test below, alongside HyperEVM.
     const { chains } = buildSweepPlan([
-      token({ network: "eth-mainnet" }),
+      token({}),
       token({ network: "solana-mainnet", address: null, decimals: 9, rawBalance: "1" }),
     ]);
 
-    expect(chains.find((c) => c.network === "eth-mainnet")?.kind).toBe("evm-batch");
+    expect(chains.find((c) => c.network === "base-mainnet")?.kind).toBe("evm-batch");
     expect(chains.find((c) => c.network === "solana-mainnet")?.kind).toBe("solana-sequential");
   });
 
@@ -120,12 +117,12 @@ describe("buildSweepPlan", () => {
         address: "0xb8ce59fc3717ada4c02eadf9682a9e934f625ebb",
         valueUsd: 3,
       }),
-      token({ network: "eth-mainnet" }),
+      token({ network: "base-mainnet" }),
     ]);
     const hyper = plan.chains.find((c) => c.network === "hyperliquid-mainnet")!;
     expect(hyper.kind).toBe("evm-user-paid");
     expect(hyper.assets.map((a) => a.symbol)).toEqual(["USDT0", "HYPE"]);
-    expect(plan.chains.find((c) => c.network === "eth-mainnet")!.kind).toBe("evm-batch");
+    expect(plan.chains.find((c) => c.network === "base-mainnet")!.kind).toBe("evm-batch");
     expect(plan.skipped).toEqual([]);
   });
 

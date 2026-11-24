@@ -4,21 +4,6 @@ import type { NextRequest } from "next/server";
 const { verifyRequest } = vi.hoisted(() => ({ verifyRequest: vi.fn() }));
 vi.mock("@/lib/server/auth", () => ({ verifyRequest }));
 
-// This suite uses Base's network as a "bso"-mode fixture — it is the only
-// chain that mode has ever run on, business-sponsored or not. Whether Base
-// itself is sponsored in production (config/alchemy-bso-evm-networks.json)
-// is a separate decision this generic proxy mechanics test must not depend on.
-vi.mock("@/lib/trade/sponsored-evm", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("@/lib/trade/sponsored-evm")>();
-  return {
-    ...mod,
-    getSponsoredEvmChainByNetwork: (network: string) => {
-      const config = mod.getSponsoredEvmChainByNetwork(network);
-      return config && network === "base-mainnet" ? { ...config, gasPolicy: true } : config;
-    },
-  };
-});
-
 function makeReq(body: unknown): NextRequest {
   return { json: async () => body } as unknown as NextRequest;
 }

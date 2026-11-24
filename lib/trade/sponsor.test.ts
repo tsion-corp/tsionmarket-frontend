@@ -8,21 +8,6 @@ import type { EIP1193Provider } from "viem";
 // estimate, one bundler send and the receipt lookups, with the
 // wallet's delegation read once and remembered.
 
-// Base's chain id is used below purely as a "bso"-mode fixture — it is the
-// only chain that mode has ever run on, business-sponsored or not. Whether
-// Base itself is sponsored in production (config/alchemy-bso-evm-networks.json)
-// is a separate decision this generic mechanics test must not depend on.
-vi.mock("@/lib/trade/sponsored-evm", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("@/lib/trade/sponsored-evm")>();
-  return {
-    ...mod,
-    getSponsoredEvmChainById: (chainId: number) => {
-      const config = mod.getSponsoredEvmChainById(chainId);
-      return config && chainId === 8453 ? { ...config, gasPolicy: true } : config;
-    },
-  };
-});
-
 const WALLET = "0x1111111111111111111111111111111111111111" as const;
 const IMPL = "0xe6cae83bde06e4c305530e199d7217f42808555b";
 const DELEGATED_CODE = `0xef0100${IMPL.slice(2)}`;

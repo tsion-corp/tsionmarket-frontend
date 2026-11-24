@@ -15,22 +15,6 @@ const { sendSponsoredEvmCallsWithReceipt, sendTransaction, signAuthorization } =
 }));
 
 vi.mock("@/lib/trade/sponsor", () => ({ sendSponsoredEvmCallsWithReceipt }));
-// This suite uses Base's chain id as the "sponsored" fixture throughout.
-// Whether Base itself is sponsored in production
-// (config/alchemy-bso-evm-networks.json) is a separate decision this generic
-// routing test must not depend on.
-vi.mock("@/lib/trade/sponsored-evm", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("@/lib/trade/sponsored-evm")>();
-  return {
-    ...mod,
-    hasGasPolicyForChainId: (chainId: number) =>
-      chainId === 8453 ? true : mod.hasGasPolicyForChainId(chainId),
-    getSponsoredEvmChainById: (chainId: number) => {
-      const config = mod.getSponsoredEvmChainById(chainId);
-      return config && chainId === 8453 ? { ...config, gasPolicy: true } : config;
-    },
-  };
-});
 // The hook sends through the kit's embedded wallet (replacing Privy's
 // useWallets / useSendTransaction / useSign7702Authorization).
 vi.mock("decane-connect-kit", () => ({

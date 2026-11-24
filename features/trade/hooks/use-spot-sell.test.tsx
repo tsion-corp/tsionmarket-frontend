@@ -24,9 +24,7 @@ const portfolioApi = vi.hoisted(() => ({
 }));
 vi.mock("@/hooks/use-portfolio", () => ({
   usePortfolio: () => ({
-    // address: null marks the native row — needed now that Base sends are
-    // user-paid, so the sell hook's gas check finds this balance.
-    tokens: [{ symbol: "ETH", network: "base-mainnet", balance: 1, decimals: 18, address: null }],
+    tokens: [{ symbol: "ETH", network: "base-mainnet", balance: 1, decimals: 18 }],
     loading: false,
     refetch: portfolioApi.refetch,
     refetchUntilChanged: portfolioApi.refetchUntilChanged,
@@ -62,12 +60,6 @@ vi.mock("@/features/trade/hooks/use-meme-trade", async (importOriginal) => ({
 }));
 
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
-// Base's own send is user-paid now; this suite is about the swap-vs-Dextopus
-// routing decision, not gas sizing, so treat every send as payable.
-vi.mock("@/lib/trade/native-gas", () => ({
-  nativeSendCost: () => Promise.resolve(0),
-  canPayNativeFee: () => true,
-}));
 
 const swapRoute = vi.hoisted(() => ({
   value: null as { tokenAddress: string; decimals: number; chainId: number } | null,
