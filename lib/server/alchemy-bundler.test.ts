@@ -4,6 +4,24 @@ import type { NextRequest } from "next/server";
 const { verifyRequest } = vi.hoisted(() => ({ verifyRequest: vi.fn() }));
 vi.mock("@/lib/server/auth", () => ({ verifyRequest }));
 
+// This suite uses "base-mainnet" as its BSO-path fixture for the generic
+// Alchemy key-pool/policy-rotation mechanism this proxy implements. Whether
+// Base itself is BSO, Alchemy-paymaster or routed through Pimlico in
+// production (config/alchemy-bso-evm-networks.json) is a separate business
+// decision this generic proxy test must not depend on.
+vi.mock("@/lib/trade/sponsored-evm", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/lib/trade/sponsored-evm")>();
+  return {
+    ...mod,
+    getSponsoredEvmChainByNetwork: (network: string) => {
+      const config = mod.getSponsoredEvmChainByNetwork(network);
+      return config && network === "base-mainnet"
+        ? { ...config, sponsorshipMode: "bso" as const, bundlerProvider: "alchemy" as const }
+        : config;
+    },
+  };
+});
+
 function makeReq(body: unknown): NextRequest {
   return { json: async () => body } as unknown as NextRequest;
 }
