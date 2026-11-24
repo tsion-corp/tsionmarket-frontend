@@ -174,14 +174,21 @@ export function MoveFundsPanel({
               <button
                 type="button"
                 className={PRIMARY}
-                disabled={!checked || problems.length > 0 || run.isPending}
+                // A completed run (even a partial failure) invalidates the scan
+                // and its rescan is still in flight here; staying disabled
+                // through it stops a click from resubmitting the stale `plan`
+                // this closure holds, which could resend transfers that
+                // already landed.
+                disabled={!checked || problems.length > 0 || run.isPending || scan.isFetching}
                 onClick={() => run.mutate({ config, linked, destinations, plan })}
               >
                 {run.isPending
                   ? "Moving…"
-                  : config.dryRun
-                    ? "Rehearse the move"
-                    : `Move ${usd.format(plan.totalUsd)} to my new wallet`}
+                  : scan.isFetching
+                    ? "Checking…"
+                    : config.dryRun
+                      ? "Rehearse the move"
+                      : `Move ${usd.format(plan.totalUsd)} to my new wallet`}
               </button>
             </div>
           ) : null}

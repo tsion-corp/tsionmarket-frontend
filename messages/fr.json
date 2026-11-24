@@ -1860,6 +1860,8 @@
     "verifyFailed": "Impossible de vérifier ce compte",
     "continueAnyway": "Continuer quand même",
     "fundFailedBody": "L'ordre est créé mais votre argent n'a pas quitté le portefeuille.",
+    "toastUnconfirmed": "Envoyé — confirmation en cours…",
+    "fundUnconfirmedBody": "Votre transfert a été envoyé et est peut-être déjà en route. Nous le confirmons — merci de ne pas l'envoyer à nouveau.",
     "done": "Terminé",
     "trackLater": "Suivre plus tard",
     "statusTitle": "Statut du paiement",

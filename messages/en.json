@@ -1860,6 +1860,8 @@
     "verifyFailed": "We couldn't verify this account",
     "continueAnyway": "Continue anyway",
     "fundFailedBody": "The order is created but your money hasn't left the wallet.",
+    "toastUnconfirmed": "Sent — waiting for confirmation…",
+    "fundUnconfirmedBody": "Your transfer was submitted and may already be on its way. We're confirming it — please don't send it again.",
     "done": "Done",
     "trackLater": "Track later",
     "statusTitle": "Payment status",

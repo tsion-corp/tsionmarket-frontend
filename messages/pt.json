@@ -1860,6 +1860,8 @@
     "verifyFailed": "Não foi possível verificar esta conta",
     "continueAnyway": "Continuar mesmo assim",
     "fundFailedBody": "O pedido foi criado, mas seu dinheiro não saiu da carteira.",
+    "toastUnconfirmed": "Enviado — confirmando…",
+    "fundUnconfirmedBody": "Sua transferência foi enviada e pode já estar em andamento. Estamos confirmando — por favor, não envie novamente.",
     "done": "Concluído",
     "trackLater": "Acompanhar depois",
     "statusTitle": "Status do pagamento",
