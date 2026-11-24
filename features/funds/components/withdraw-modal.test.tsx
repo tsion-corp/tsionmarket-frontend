@@ -14,11 +14,17 @@ vi.mock("@/features/funds/components/crypto-withdraw-screen", () => ({
 vi.mock("@/features/funds/components/bank-withdraw-screen", () => ({
   BankWithdrawScreen: () => <div>bank screen</div>,
 }));
+vi.mock("@/features/funds/components/paycrest-withdraw-screen", () => ({
+  PaycrestWithdrawScreen: () => <div>paycrest bank screen</div>,
+}));
 
-const flag = vi.hoisted(() => ({ enabled: false }));
+const flag = vi.hoisted(() => ({ enabled: false, rail: "paycrest" }));
 vi.mock("@/features/funds/lib/flags", () => ({
   get BANK_WITHDRAW_ENABLED() {
     return flag.enabled;
+  },
+  get BANK_RAIL() {
+    return flag.rail;
   },
 }));
 
@@ -33,6 +39,7 @@ function renderModal(onClose = vi.fn()) {
 
 afterEach(() => {
   flag.enabled = false;
+  flag.rail = "paycrest";
 });
 
 describe("WithdrawModal with bank withdrawal disabled", () => {
@@ -55,5 +62,22 @@ describe("WithdrawModal with bank withdrawal enabled", () => {
     renderModal();
     expect(screen.getByText("To bank")).toBeInTheDocument();
     expect(screen.getByText("To external wallet")).toBeInTheDocument();
+  });
+});
+
+describe("WithdrawModal bank rail", () => {
+  it("opens the Paycrest screen when Paycrest is the rail", () => {
+    flag.enabled = true;
+    renderModal();
+    fireEvent.click(screen.getByRole("button", { name: /To bank/ }));
+    expect(screen.getByText("paycrest bank screen")).toBeInTheDocument();
+  });
+
+  it("falls back to the previous screen when the rail is switched back", () => {
+    flag.enabled = true;
+    flag.rail = "ramping";
+    renderModal();
+    fireEvent.click(screen.getByRole("button", { name: /To bank/ }));
+    expect(screen.getByText("bank screen")).toBeInTheDocument();
   });
 });
