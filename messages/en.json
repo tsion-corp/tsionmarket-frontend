@@ -945,8 +945,7 @@
     "arkStoreAria": "Get our app on ArkStore",
     "valuationUnavailable": "Valuation unavailable",
     "gasBalanceLabel": "Gas balance (Base)",
-    "gasBalanceLowTitle": "Your gas balance is low",
-    "gasBalanceLowBody": "Keep a little ETH on Base so your sends and buys can go through. We top this up automatically from your deposits when we can.",
+    "gasBalanceLowBody": "Base sends need a little ETH on Base to pay for gas. Add some so your sends and buys can go through.",
     "gasBalanceTopUp": "Add ETH"
   },
   "markets": {

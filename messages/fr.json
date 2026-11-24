@@ -945,8 +945,7 @@
     "arkStoreAria": "Téléchargez notre app sur ArkStore",
     "valuationUnavailable": "Valorisation indisponible",
     "gasBalanceLabel": "Solde de gas (Base)",
-    "gasBalanceLowTitle": "Votre solde de gas est faible",
-    "gasBalanceLowBody": "Gardez un peu d'ETH sur Base pour que vos envois et achats puissent passer. Nous le rechargeons automatiquement à partir de vos dépôts quand c'est possible.",
+    "gasBalanceLowBody": "Les envois sur Base nécessitent un peu d'ETH sur Base pour payer le gaz. Ajoutez-en pour que vos envois et achats passent.",
     "gasBalanceTopUp": "Ajouter de l'ETH"
   },
   "markets": {
