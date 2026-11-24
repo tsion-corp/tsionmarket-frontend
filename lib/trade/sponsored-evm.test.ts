@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getSponsoredEvmChainById,
   getSponsoredEvmChainByNetwork,
   hasGasPolicyForChainId,
   hasGasPolicyForNetwork,
@@ -91,13 +92,25 @@ describe("gas policy coverage", () => {
 });
 
 describe("sponsorship mode per network", () => {
-  it("uses the BSO path for Base and the paymaster path elsewhere", () => {
+  it("uses the standard ERC-7677 paymaster path everywhere; nothing is left on BSO", () => {
     for (const config of SPONSORED_EVM_CHAINS) {
       if (!config.gasPolicy) continue;
-      expect(config.sponsorshipMode, config.network).toBe(
-        config.network === "base-mainnet" ? "bso" : "paymaster"
+      expect(config.sponsorshipMode, config.network).toBe("paymaster");
+    }
+  });
+
+  it("routes Base's bundler traffic through Pimlico; every other sponsored chain stays on Alchemy", () => {
+    for (const config of SPONSORED_EVM_CHAINS) {
+      if (!config.gasPolicy) continue;
+      expect(config.bundlerProvider, config.network).toBe(
+        config.network === "base-mainnet" ? "pimlico" : "alchemy"
       );
     }
+  });
+
+  it("answers the bundler provider by chain id too, for the send path", () => {
+    expect(getSponsoredEvmChainById(8453)?.bundlerProvider).toBe("pimlico");
+    expect(getSponsoredEvmChainById(42161)?.bundlerProvider).toBe("alchemy");
   });
 
   it("only sponsors chains it can also read receipts from", () => {

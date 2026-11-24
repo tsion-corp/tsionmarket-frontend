@@ -1,6 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EIP1193Provider } from "viem";
 
+// This suite uses Base's chain id as its BSO-path fixture for the generic
+// Alchemy sponsored-send mechanism (gas estimate, bundler send, receipt
+// poll). Whether Base itself is BSO, Alchemy-paymaster or routed through
+// Pimlico in production (config/alchemy-bso-evm-networks.json) is a separate
+// business decision this generic routing test must not depend on.
+vi.mock("@/lib/trade/sponsored-evm", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/lib/trade/sponsored-evm")>();
+  return {
+    ...mod,
+    getSponsoredEvmChainById: (chainId: number) => {
+      const config = mod.getSponsoredEvmChainById(chainId);
+      return config && chainId === 8453
+        ? { ...config, sponsorshipMode: "bso" as const, bundlerProvider: "alchemy" as const }
+        : config;
+    },
+  };
+});
+
 // Wiring test for the sponsored send: a fake fetch answers every JSON-RPC call
 // the flow makes and records the method behind each one, so the test can pin
 // the exact set of round trips one send costs. Production traced fifteen or
