@@ -337,12 +337,7 @@ describe("HoldingsModal", () => {
 
   it("routes a held RWA to the RWA panel rather than the swap sheets", () => {
     setPortfolio({
-      tokens: [
-        token({ symbol: "TSLAx", name: "Tesla", kind: "rwa", network: "base-mainnet" }),
-        // Base sends are user-paid now; a native balance is what keeps this
-        // holding sellable (and so, shown) in the holdings list.
-        token({ symbol: "ETH", name: "Ether", network: "base-mainnet", address: null }),
-      ],
+      tokens: [token({ symbol: "TSLAx", name: "Tesla", kind: "rwa", network: "base-mainnet" })],
     });
     const { onOpenDetail, onOpenRwaTrade, onOpenBuy } = renderModal();
 
@@ -358,10 +353,7 @@ describe("HoldingsModal", () => {
 
   it("routes a held catalog memecoin to the meme trade sheet", () => {
     setPortfolio({
-      tokens: [
-        token({ symbol: "PEPE", name: "Pepe", network: "base-mainnet", meme: true }),
-        token({ symbol: "ETH", name: "Ether", network: "base-mainnet", address: null }),
-      ],
+      tokens: [token({ symbol: "PEPE", name: "Pepe", network: "base-mainnet", meme: true })],
     });
     const { onOpenDetail, onOpenMemeSell, onOpenSell } = renderModal();
 
@@ -386,7 +378,6 @@ describe("HoldingsModal", () => {
           priceUsd: 0,
           valueUsd: 0,
         }),
-        token({ symbol: "ETH", name: "Ether", network: "base-mainnet", address: null }),
       ],
     });
     const { onOpenDetail } = renderModal();
