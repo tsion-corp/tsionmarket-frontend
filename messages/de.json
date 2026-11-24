@@ -943,7 +943,10 @@
     "arkStorePitch": "Hol dir unsere App",
     "arkStoreTagline": "im ArkStore",
     "arkStoreAria": "Hol dir unsere App im ArkStore",
-    "valuationUnavailable": "Bewertung nicht verfügbar"
+    "valuationUnavailable": "Bewertung nicht verfügbar",
+    "gasBalanceLabel": "Gas-Guthaben (Base)",
+    "gasBalanceLowBody": "Sendungen auf Base brauchen etwas ETH auf Base für die Gebühren. Füge etwas hinzu, damit Sendungen und Käufe durchgehen.",
+    "gasBalanceTopUp": "ETH hinzufügen"
   },
   "markets": {
     "title": "Märkte",
