@@ -5,6 +5,8 @@ import { useTranslations } from "next-intl";
 import { MethodTile } from "@/features/funds/components/method-tile";
 import { CryptoDepositScreen } from "@/features/funds/components/crypto-deposit-screen";
 import { BankTransferScreen } from "@/features/funds/components/bank-transfer-screen";
+import { PaycrestDepositScreen } from "@/features/funds/components/paycrest-deposit-screen";
+import { BANK_RAIL } from "@/features/funds/lib/flags";
 import { BuyKashNairaScreen } from "@/features/funds/components/buy-kash-naira-screen";
 import { AddWskScreen } from "@/features/funds/components/add-wsk-screen";
 import { useModalScreen } from "@/components/ui/modal-shell";
@@ -38,7 +40,13 @@ export function FundsModal({
   const backToKash = () => setStep("kash");
 
   if (step === "crypto") return <CryptoDepositScreen onBack={back} initialDeposit={deposit} />;
-  if (step === "bank") return <BankTransferScreen onBack={back} onClose={onClose} />;
+  if (step === "bank") {
+    return BANK_RAIL === "paycrest" ? (
+      <PaycrestDepositScreen onBack={back} />
+    ) : (
+      <BankTransferScreen onBack={back} onClose={onClose} />
+    );
+  }
   if (step === "kash") {
     return <KashOptions onBack={startAt ? undefined : back} onChoose={setStep} />;
   }

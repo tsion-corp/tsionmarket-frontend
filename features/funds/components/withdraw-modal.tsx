@@ -5,8 +5,9 @@ import { useTranslations } from "next-intl";
 import { MethodTile } from "@/features/funds/components/method-tile";
 import { CryptoWithdrawScreen } from "@/features/funds/components/crypto-withdraw-screen";
 import { BankWithdrawScreen } from "@/features/funds/components/bank-withdraw-screen";
+import { PaycrestWithdrawScreen } from "@/features/funds/components/paycrest-withdraw-screen";
 import { SwapIcon, BankIcon } from "@/components/ui/icons";
-import { BANK_WITHDRAW_ENABLED } from "@/features/funds/lib/flags";
+import { BANK_RAIL, BANK_WITHDRAW_ENABLED } from "@/features/funds/lib/flags";
 
 type Step = "chooser" | "crypto" | "bank";
 
@@ -16,7 +17,13 @@ export function WithdrawModal({ onClose }: { onClose: () => void }) {
   const back = () => setStep("chooser");
 
   if (step === "crypto") return <CryptoWithdrawScreen onBack={back} />;
-  if (step === "bank") return <BankWithdrawScreen onBack={back} />;
+  if (step === "bank") {
+    return BANK_RAIL === "paycrest" ? (
+      <PaycrestWithdrawScreen onBack={back} />
+    ) : (
+      <BankWithdrawScreen onBack={back} />
+    );
+  }
 
   return (
     <div>
