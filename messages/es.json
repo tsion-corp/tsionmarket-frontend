@@ -943,7 +943,10 @@
     "arkStorePitch": "Consigue nuestra app",
     "arkStoreTagline": "en ArkStore",
     "arkStoreAria": "Consigue nuestra app en ArkStore",
-    "valuationUnavailable": "Valoración no disponible"
+    "valuationUnavailable": "Valoración no disponible",
+    "gasBalanceLabel": "Saldo de gas (Base)",
+    "gasBalanceLowBody": "Los envíos en Base necesitan algo de ETH en Base para pagar el gas. Añade un poco para que tus envíos y compras se completen.",
+    "gasBalanceTopUp": "Añadir ETH"
   },
   "markets": {
     "title": "Mercados",
@@ -1860,6 +1863,8 @@
     "verifyFailed": "No pudimos verificar esta cuenta",
     "continueAnyway": "Continuar de todos modos",
     "fundFailedBody": "El pedido está creado pero tu dinero no ha salido de la billetera.",
+    "toastUnconfirmed": "Enviado — confirmando…",
+    "fundUnconfirmedBody": "Tu transferencia se envió y puede que ya esté en camino. La estamos confirmando — por favor no la envíes de nuevo.",
     "done": "Listo",
     "trackLater": "Seguir más tarde",
     "statusTitle": "Estado del pago",

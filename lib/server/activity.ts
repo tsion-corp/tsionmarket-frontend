@@ -14,6 +14,7 @@ import {
   type ActionRegistry,
 } from "@/lib/server/action-registry";
 import { alchemyFetch } from "@/lib/server/alchemy-keys";
+import { drpcUrl } from "@/lib/server/drpc";
 import { cached } from "@/lib/server/response-cache";
 
 type RwaRegistry = Record<string, Map<string, RwaTokenInfo>>;
@@ -155,15 +156,25 @@ const ACTIVITY_EVM_NETWORKS = EVM_NETWORKS.filter((network) => network in RPC_HO
 async function rpc<T>(network: string, method: string, params: unknown): Promise<T | null> {
   const host = RPC_HOST[network];
   if (!host) return null;
-  const res = await alchemyFetch((key) => `https://${host}.g.alchemy.com/v2/${key}`, {
+  const init: RequestInit = {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
     signal: AbortSignal.timeout(12_000),
     cache: "no-store",
-  });
+  };
+  // Standard JSON-RPC goes to dRPC (lib/server/drpc.ts). Only Alchemy's own
+  // alchemy_* methods (the EVM transfer history) still need Alchemy.
+  const drpc = method.startsWith("alchemy_") ? null : drpcUrl(network);
+  let res: Response;
+  if (drpc) {
+    res = await fetch(drpc, init);
+    if (!res.ok) throw new Error(`${network} ${method} failed: dRPC answered ${res.status}`);
+  } else {
+    res = await alchemyFetch((key) => `https://${host}.g.alchemy.com/v2/${key}`, init);
+  }
   const data = await res.json();
-  // Alchemy can answer HTTP 200 with a JSON-RPC error. Reading `result` off
+  // A provider can answer HTTP 200 with a JSON-RPC error. Reading `result` off
   // that gives undefined, which is not an empty result.
   const rpcError = (data as { error?: { message?: string } } | null)?.error;
   if (rpcError) {

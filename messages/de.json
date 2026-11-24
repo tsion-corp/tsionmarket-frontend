@@ -943,7 +943,10 @@
     "arkStorePitch": "Hol dir unsere App",
     "arkStoreTagline": "im ArkStore",
     "arkStoreAria": "Hol dir unsere App im ArkStore",
-    "valuationUnavailable": "Bewertung nicht verfügbar"
+    "valuationUnavailable": "Bewertung nicht verfügbar",
+    "gasBalanceLabel": "Gas-Guthaben (Base)",
+    "gasBalanceLowBody": "Sendungen auf Base brauchen etwas ETH auf Base für die Gebühren. Füge etwas hinzu, damit Sendungen und Käufe durchgehen.",
+    "gasBalanceTopUp": "ETH hinzufügen"
   },
   "markets": {
     "title": "Märkte",
@@ -1860,6 +1863,8 @@
     "verifyFailed": "Wir konnten dieses Konto nicht verifizieren",
     "continueAnyway": "Trotzdem fortfahren",
     "fundFailedBody": "Der Auftrag ist angelegt, aber dein Geld hat die Wallet nicht verlassen.",
+    "toastUnconfirmed": "Gesendet — Bestätigung läuft…",
+    "fundUnconfirmedBody": "Deine Überweisung wurde gesendet und ist möglicherweise schon unterwegs. Wir bestätigen das gerade — bitte nicht erneut senden.",
     "done": "Fertig",
     "trackLater": "Später verfolgen",
     "statusTitle": "Zahlungsstatus",

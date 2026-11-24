@@ -4,7 +4,7 @@ import { Suspense, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppModalHost, useAppModals } from "@/components/layout/modals/app-modals";
-import { CurvedTabBar } from "@/components/layout/curved-tab-bar";
+import { TabBar } from "@/components/layout/tab-bar";
 import { buildNav } from "@/components/layout/nav-items";
 import { useAppNavigate } from "@/hooks/use-app-navigate";
 import { MobileMarketView } from "@/features/trade/components/mobile-market-view";
@@ -46,7 +46,7 @@ export default function MarketPage() {
       {/* The bottom nav, so Market is not a one-way trip. The view reserves room
           for it (see the pb on its content column) so nothing hides behind it.
           Market is reached from the second icon, so it reads active here. */}
-      <CurvedTabBar items={nav} activeSection="spot" onNavigate={navigate} />
+      <TabBar items={nav} activeSection="spot" onNavigate={navigate} />
     </AuthGuard>
   );
 }

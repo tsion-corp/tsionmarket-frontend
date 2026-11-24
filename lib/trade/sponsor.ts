@@ -3,12 +3,13 @@
 import { http, type EIP1193Provider, type SignedAuthorization } from "viem";
 import {
   createBundlerClient,
+  createPaymasterClient,
   UserOperationReceiptNotFoundError,
   WaitForUserOperationReceiptTimeoutError,
   type BundlerClient,
 } from "viem/account-abstraction";
 import { to7702SimpleSmartAccount } from "permissionless/accounts";
-import { getSponsoredEvmChainById } from "@/lib/trade/sponsored-evm";
+import { getSponsoredEvmChainById, type SponsoredEvmChainConfig } from "@/lib/trade/sponsored-evm";
 import { isReceiptChain, publicClientForChain } from "@/lib/trade/receipt";
 import { isDelegated, rememberDelegated, SIMPLE_7702_IMPLEMENTATION } from "@/lib/trade/delegation";
 import { requestGasAndPaymaster, type BundlerRequest } from "@/lib/trade/gas-manager";
@@ -28,9 +29,12 @@ const USER_OPERATION_RECEIPT_POLL_MS = 1_000;
 const ONCHAIN_RECOVERY_POLL_MS = 5_000;
 const ONCHAIN_RECOVERY_BLOCKS = 2_000n;
 
-// The proxy exposes only Alchemy's UserOperation/paymaster methods. Every
-// ordinary eth_* read uses the separate ZeroDev-backed read client below.
-const BUNDLER_PATH = "/api/alchemy-bundler";
+// The proxy exposes only each provider's UserOperation/paymaster methods.
+// Every ordinary eth_* read uses the separate ZeroDev-backed read client
+// below.
+function bundlerPathFor(target: SponsoredEvmChainConfig): string {
+  return target.bundlerProvider === "pimlico" ? "/api/pimlico-bundler" : "/api/alchemy-bundler";
+}
 
 export interface SponsoredCall {
   to: `0x${string}`;
@@ -154,7 +158,7 @@ export async function sendSponsoredEvmCallsWithReceipt({
     throw new Error(`This chain is not configured for sponsored EVM sends (${chainId}).`);
   }
 
-  const bundlerTransport = http(`${BUNDLER_PATH}/${target.network}`, {
+  const bundlerTransport = http(`${bundlerPathFor(target)}/${target.network}`, {
     fetchOptions: { headers: { Authorization: `Bearer ${accessToken}` } },
     // The Alchemy app enforces a compute-units-per-SECOND cap shared with the
     // dashboard's read traffic, and a page-load burst can 429 the very send
@@ -211,7 +215,19 @@ export async function sendSponsoredEvmCallsWithReceipt({
     );
 
   let hash: `0x${string}`;
-  if (target.sponsorshipMode === "paymaster") {
+  if (target.bundlerProvider === "pimlico") {
+    // The standard ERC-7677 flow: viem's bundler client fills gas limits,
+    // fees and paymaster data itself through pm_getPaymasterStubData and
+    // pm_getPaymasterData, the calls any ERC-7677 paymaster actually answers.
+    // Alchemy's one-call alchemy_requestGasAndPaymasterAndData below is
+    // Alchemy-only and Pimlico does not implement it.
+    hash = await bundlerClient.sendUserOperation({
+      calls,
+      authorization,
+      nonce,
+      paymaster: createPaymasterClient({ transport: bundlerTransport }),
+    });
+  } else if (target.sponsorshipMode === "paymaster") {
     const sponsored = await requestGasAndPaymaster({
       request: bundlerRequest,
       entryPoint: ENTRY_POINT_V08,

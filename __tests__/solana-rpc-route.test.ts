@@ -7,6 +7,7 @@ const auth = vi.hoisted(() => ({ verifyRequest: vi.fn(), getRequestIdentity: vi.
 vi.mock("@/lib/server/auth", () => auth);
 
 const { POST } = await import("@/app/api/solana-rpc/route");
+const DRPC_API_KEY = "drpc-test-key";
 
 function makeReq(body: unknown): NextRequest {
   return { json: async () => body } as unknown as NextRequest;
@@ -18,6 +19,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   auth.verifyRequest.mockResolvedValue({ sub: "user" });
   process.env.ALCHEMY_API_KEY = "test-key";
+  process.env.DRPC_API_KEY = DRPC_API_KEY;
   delete process.env.HELIUS_API_KEY;
   delete process.env.HELIUS_API_KEY_FALLBACK;
   delete process.env.SOLANA_RPC_URL;
@@ -30,7 +32,7 @@ beforeEach(() => {
 });
 
 describe("solana rpc proxy", () => {
-  it("rejects an unauthenticated caller before reaching Alchemy", async () => {
+  it("rejects an unauthenticated caller before reaching any provider", async () => {
     auth.verifyRequest.mockResolvedValue(null);
     const res = await POST(makeReq({ method: "getLatestBlockhash" }));
     expect(res.status).toBe(401);
@@ -71,13 +73,13 @@ describe("solana rpc proxy", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("never leaks the key into the response path", async () => {
+  it("never leaks the provider key into the response path", async () => {
     const res = await POST(makeReq({ jsonrpc: "2.0", id: 1, method: "getLatestBlockhash" }));
-    expect(await res.text()).not.toContain("test-key");
-    expect(String(fetchMock.mock.calls[0][0])).toContain("test-key");
+    expect(await res.text()).not.toContain(DRPC_API_KEY);
+    expect(String(fetchMock.mock.calls[0][0])).toContain(DRPC_API_KEY);
   });
 
-  it("fails over to public mainnet when Alchemy is unavailable", async () => {
+  it("fails over to public mainnet when dRPC is unavailable", async () => {
     fetchMock
       .mockImplementationOnce(async () => new Response("upstream down", { status: 502 }))
       .mockImplementationOnce(
@@ -91,7 +93,7 @@ describe("solana rpc proxy", () => {
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toMatchObject({ result: "fallback-ok" });
-    expect(String(fetchMock.mock.calls[0][0])).toContain("test-key");
+    expect(String(fetchMock.mock.calls[0][0])).toContain("lb.drpc.live/solana/");
     expect(fetchMock.mock.calls[1][0]).toBe("https://api.mainnet-beta.solana.com");
   });
 

@@ -3,7 +3,6 @@ import { MarketLogo } from "@/components/ui/market-logo";
 import { ArrowUpRightIcon } from "@/components/ui/icons";
 import { CopyLayer, RevealItem } from "@/components/landing/layers/reveal-item";
 import { LaunchCta } from "@/components/landing/launch-cta";
-import { ARKSTORE_URL } from "@/lib/brand";
 
 const CTA_CLASS =
   "inline-flex cursor-pointer items-center gap-2 rounded-full border border-white/16 bg-white/8 px-6 py-[13px] text-[15px] font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] backdrop-blur-[50px] hover:bg-white/12";
@@ -22,20 +21,14 @@ export function EnterLayer() {
           {t("poweredBy", { name: "Tsion" })}
         </div>
       </RevealItem>
+      {/* The app-store CTA lived here too; the ArkStore listing is paused, so
+          it is not rendered rather than linking somewhere that doesn't work.
+          Restoring it is this block plus the import, nothing else. */}
       <RevealItem className="pointer-events-auto mt-11 flex flex-wrap items-center justify-center gap-3">
         <LaunchCta className={CTA_CLASS}>
           {tNav("getStarted")}
           <ArrowUpRightIcon className="text-[#d4d4d8]" />
         </LaunchCta>
-        <a
-          href={ARKSTORE_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`${CTA_CLASS} capitalize`}
-        >
-          {tNav("getApp")}
-          <ArrowUpRightIcon className="text-[#d4d4d8]" />
-        </a>
       </RevealItem>
       <RevealItem
         className="absolute bottom-[46px] left-1/2 flex flex-col items-center gap-2.5"

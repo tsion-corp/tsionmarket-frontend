@@ -943,7 +943,10 @@
     "arkStorePitch": "Get our app",
     "arkStoreTagline": "on ArkStore",
     "arkStoreAria": "Get our app on ArkStore",
-    "valuationUnavailable": "Valuation unavailable"
+    "valuationUnavailable": "Valuation unavailable",
+    "gasBalanceLabel": "Gas balance (Base)",
+    "gasBalanceLowBody": "Base sends need a little ETH on Base to pay for gas. Add some so your sends and buys can go through.",
+    "gasBalanceTopUp": "Add ETH"
   },
   "markets": {
     "title": "Markets",
@@ -1860,6 +1863,8 @@
     "verifyFailed": "We couldn't verify this account",
     "continueAnyway": "Continue anyway",
     "fundFailedBody": "The order is created but your money hasn't left the wallet.",
+    "toastUnconfirmed": "Sent — waiting for confirmation…",
+    "fundUnconfirmedBody": "Your transfer was submitted and may already be on its way. We're confirming it — please don't send it again.",
     "done": "Done",
     "trackLater": "Track later",
     "statusTitle": "Payment status",

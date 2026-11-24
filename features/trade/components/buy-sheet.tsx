@@ -4,7 +4,9 @@ import { BASE_CHAIN_ID } from "@/lib/meme/chain";
 import { scopeOf } from "@/lib/portfolio/fresh-scope";
 import { networkForChainId } from "@/lib/trade-share";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { ProgressBar } from "@/components/ui/progress-bar";
@@ -22,9 +24,13 @@ import { routesForSymbol } from "@/lib/buy";
 import { swapRouteForSymbol } from "@/lib/spot-swap";
 import { depositProgress, usdcBaseUnits, type DepositStage } from "@/lib/deposit";
 import { formatAmount, fromBaseUnits } from "@/lib/trade/math";
+import { canPayNativeFee, nativeSendCost } from "@/lib/trade/native-gas";
+import { hasGasPolicyForNetwork } from "@/lib/trade/sponsored-evm";
 import { toast } from "@/lib/toast";
-import { friendlyError } from "@/lib/errors";
+import { friendlyError, isGasFeeError } from "@/lib/errors";
 import type { BuyPayload } from "@/lib/modal-types";
+
+const BASE_NETWORK = "base-mainnet";
 
 // A route can arrive without a chainName. Capitalising undefined throws, and a
 // thrown render here blanks the whole page, so an unnamed chain gets a label
@@ -60,6 +66,7 @@ interface BuySheetProps {
 export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
   const t = useTranslations("buySell");
   const tErr = useTranslations("tradeErrors");
+  const session = useAuthSession();
   const portfolio = usePortfolio();
   const destinations = useBuyDestinations();
 
@@ -139,8 +146,27 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
   // Solana buys start at 2 USDC, everything else at 1 (lib/trade/minimums).
   const minUsd = minimumBuyUsd(isSolanaChainId(route?.destinationChainId));
   const belowMin = belowMinimumBuy(value, isSolanaChainId(route?.destinationChainId));
-  // A buy is always a USDC send on Base, and every Base send is gas-sponsored
-  // (EIP-7702 through our bundler), so no native ETH is ever required here.
+
+  // A buy is always a USDC send on Base. While Base is gas-sponsored (EIP-7702
+  // through our bundler) it needs no ETH; if sponsorship is switched off, the
+  // wallet pays its own gas, so the buy is held back until it has enough.
+  const baseSponsored = hasGasPolicyForNetwork(BASE_NETWORK);
+  const baseNativeBalance = useMemo(
+    () =>
+      portfolio.tokens.find((t) => t.network === BASE_NETWORK && t.address === null)?.balance ?? 0,
+    [portfolio.tokens]
+  );
+  const measuredGas = useQuery({
+    queryKey: ["nativeSendCost", BASE_NETWORK, null],
+    queryFn: () => nativeSendCost(BASE_NETWORK, { from: session.evmAddress ?? undefined }),
+    enabled: !baseSponsored,
+    staleTime: 15_000,
+    refetchInterval: 15_000,
+    retry: 1,
+  });
+  const hasGas = baseSponsored || canPayNativeFee(baseNativeBalance, measuredGas.data);
+  const noGas = !portfolio.loading && !hasGas;
+
   const canBuy =
     (Boolean(route) || isSwapMarket) &&
     swapTradable &&
@@ -148,6 +174,7 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
     value >= minUsd &&
     !portfolio.loading &&
     value <= balance &&
+    !noGas &&
     !buy.isPending &&
     !swapBusy;
 
@@ -307,9 +334,14 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
       });
       setBought(formatAmount(Number(fromBaseUnits(result.estimatedOutput, route.decimals))));
       setRequestId(result.requestId);
-    } catch {
+    } catch (error) {
       // The detailed message is surfaced from buy.error below; resolve the toast.
-      toast.error(t("buyFailedToast", { name: payload.name }), { id: toastRef.current });
+      toast.error(
+        isGasFeeError(error)
+          ? t("needGasFee", { symbol: "ETH", network: "Base" })
+          : t("buyFailedToast", { name: payload.name }),
+        { id: toastRef.current }
+      );
       toastRef.current = undefined;
     }
   };
@@ -466,9 +498,16 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
           />
         </div>
       ) : null}
+      {noGas ? (
+        <p className="mt-3 text-[12.5px] leading-[1.5] font-normal text-white/55">
+          {t("needGasFee", { symbol: "ETH", network: "Base" })}
+        </p>
+      ) : null}
       {buy.error ? (
         <p className="text-down mt-3 text-[13px] font-normal">
-          {friendlyError(buy.error, t("purchaseFailedFallback"))}
+          {isGasFeeError(buy.error)
+            ? t("needGasFee", { symbol: "ETH", network: "Base" })
+            : friendlyError(buy.error, t("purchaseFailedFallback"))}
         </p>
       ) : isSwapMarket && memeTrade.error ? (
         <p className="text-down mt-3 text-[13px] font-normal">
