@@ -943,7 +943,10 @@
     "arkStorePitch": "Téléchargez notre app",
     "arkStoreTagline": "sur ArkStore",
     "arkStoreAria": "Téléchargez notre app sur ArkStore",
-    "valuationUnavailable": "Valorisation indisponible"
+    "valuationUnavailable": "Valorisation indisponible",
+    "gasBalanceLabel": "Solde de gas (Base)",
+    "gasBalanceLowBody": "Les envois sur Base nécessitent un peu d'ETH sur Base pour payer le gaz. Ajoutez-en pour que vos envois et achats passent.",
+    "gasBalanceTopUp": "Ajouter de l'ETH"
   },
   "markets": {
     "title": "Marchés",

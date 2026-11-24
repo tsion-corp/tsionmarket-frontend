@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
 import { memeToken } from "@/lib/meme/fixture";
@@ -34,10 +35,24 @@ vi.mock("@/features/trade/hooks/use-meme-trade", async (importOriginal) => ({
 
 vi.mock("@/hooks/use-portfolio", () => ({
   usePortfolio: () => ({
-    tokens: [{ network: "base-mainnet", symbol: "USDC", balance: 500 }],
+    tokens: [{ network: "base-mainnet", symbol: "USDC", balance: 500, address: "0xusdc" }],
     loading: false,
     refetchUntilChanged: vi.fn(),
   }),
+}));
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => ({
+    evmAddress: "0xabc",
+    solanaAddress: null,
+    authenticated: true,
+    ready: true,
+  }),
+}));
+// Gas-shortfall checking is covered elsewhere; this file is about the
+// swap-path low-liquidity consent, so Base is treated as always payable here.
+vi.mock("@/lib/trade/native-gas", () => ({
+  nativeSendCost: () => Promise.resolve(0),
+  canPayNativeFee: () => true,
 }));
 vi.mock("@/hooks/use-deposit", () => ({
   useDepositChains: () => ({ data: [] }),
@@ -62,10 +77,16 @@ const LOW = { code: "LOW_LIQUIDITY", message: "Liquidity is below $50,000." };
 const buyLabel = messages.buySell.buyToken.replace("{name}", "Dogecoin");
 
 function renderSheet() {
+  const queryClient = new QueryClient();
   render(
-    <NextIntlClientProvider locale="en" messages={messages}>
-      <BuySheet payload={{ symbol: "DOGE", name: "Dogecoin", priceUsd: 0.1 }} onClose={() => {}} />
-    </NextIntlClientProvider>
+    <QueryClientProvider client={queryClient}>
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <BuySheet
+          payload={{ symbol: "DOGE", name: "Dogecoin", priceUsd: 0.1 }}
+          onClose={() => {}}
+        />
+      </NextIntlClientProvider>
+    </QueryClientProvider>
   );
 }
 

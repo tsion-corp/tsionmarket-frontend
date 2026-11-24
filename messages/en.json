@@ -943,7 +943,10 @@
     "arkStorePitch": "Get our app",
     "arkStoreTagline": "on ArkStore",
     "arkStoreAria": "Get our app on ArkStore",
-    "valuationUnavailable": "Valuation unavailable"
+    "valuationUnavailable": "Valuation unavailable",
+    "gasBalanceLabel": "Gas balance (Base)",
+    "gasBalanceLowBody": "Base sends need a little ETH on Base to pay for gas. Add some so your sends and buys can go through.",
+    "gasBalanceTopUp": "Add ETH"
   },
   "markets": {
     "title": "Markets",
