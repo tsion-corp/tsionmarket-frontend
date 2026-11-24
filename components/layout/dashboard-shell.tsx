@@ -6,7 +6,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { markKnownUser } from "@/lib/known-user";
 import { Topbar } from "@/components/layout/topbar";
 import { AccountModal } from "@/components/layout/modals/account-modal";
-import { CurvedTabBar } from "@/components/layout/curved-tab-bar";
+import { TabBar } from "@/components/layout/tab-bar";
 import { ConnectionBanner } from "@/components/layout/connection-banner";
 import { SupportButton } from "@/components/layout/support-button";
 import { ModalShell } from "@/components/ui/modal-shell";
@@ -91,7 +91,7 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
           the note in the component for why it is not one per panel. */}
       <ConnectionBanner />
 
-      <CurvedTabBar items={nav} activeSection={activeSection} onNavigate={navigate} />
+      <TabBar items={nav} activeSection={activeSection} onNavigate={navigate} />
 
       <SupportButton />
 

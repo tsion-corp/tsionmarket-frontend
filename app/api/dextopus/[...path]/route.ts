@@ -47,6 +47,11 @@ async function proxy(req: NextRequest, path: string[], method: "GET" | "POST", b
       revalidate: method === "GET" ? cacheSecondsFor(joined) : undefined,
     });
     const data = await res.json().catch(() => ({}));
+    // Say who refused: this route passes the provider's status straight through, so a 401 here
+    // can be the provider rejecting the key for this purpose, not our own session check.
+    if (res.status === 401 || res.status === 403) {
+      console.warn(`Dextopus refused ${purpose}/${joined}: ${res.status}`);
+    }
     // Status is reconciliation, not a new money-moving command. During a
     // provider outage keep the operation pending and tell the state machine
     // when to check again instead of flooding the browser with 5xx responses.

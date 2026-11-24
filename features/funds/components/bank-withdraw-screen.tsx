@@ -162,7 +162,6 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
     fullScreen: true,
   });
   const [account, setAccount] = useState("");
-  const [beneficiaryTab, setBeneficiaryTab] = useState<"recent" | "favorite" | "all">("recent");
   // Users type Naira by default (the amount they want in their bank) and can
   // switch the entry to USDC. The withdrawal itself is always USDC.
   const [entry, setEntry] = useState<"ngn" | "usdc">("ngn");
@@ -409,12 +408,6 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
   // Continue from the initial screen: bank + account must be verified.
   const canContinue = Boolean(bank) && Boolean(verifiedName);
 
-  const BENEFICIARY_TABS = [
-    { key: "recent" as const, label: "Recent" },
-    { key: "favorite" as const, label: "Favorite" },
-    { key: "all" as const, label: "View All" },
-  ];
-
   // Bank picker overlay — search + popular banks, shown when the pill is tapped.
   if (showBankPicker) {
     return (
@@ -623,7 +616,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
           </span>
         )}
         <span className="shrink-0 font-sans text-[8px] font-medium text-white/70">
-          Change Bank &#9662;
+          {bank ? "Change Bank" : "Select"} &#9662;
         </span>
       </button>
 
@@ -667,21 +660,12 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
 
       <FormFeedback feedback={feedback} />
 
-      {/* Beneficiary tabs */}
-      <div className="mt-8 flex items-center justify-between px-2">
-        {BENEFICIARY_TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setBeneficiaryTab(tab.key)}
-            className={`cursor-pointer font-sans text-[13px] font-semibold transition-colors ${
-              beneficiaryTab === tab.key
-                ? "text-white underline underline-offset-4"
-                : "text-white/50 hover:text-white/70"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      {/* Recent beneficiaries. A tab switcher (Recent/Favorite/View All) used
+          to sit here; there is no backend for any of those lists yet, so it
+          only looked interactive. Restoring it is worth doing once there's
+          something behind it to switch to. */}
+      <div className="mt-8 px-2">
+        <span className="font-sans text-[13px] font-semibold text-white">Recent</span>
       </div>
 
       {/* Recent beneficiaries list (placeholder — no backend endpoint yet) */}
