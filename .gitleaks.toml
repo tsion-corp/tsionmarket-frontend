@@ -60,6 +60,15 @@ regexes = ['''Figma file key''']
 # The Vivid support widget's browser key, shipped in the page as
 # window.__VIVID_CONFIG from 2026-08-01 (#92) to 2026-08-23 (#256). Public by
 # design: every visitor's browser received it. Removed with the widget.
+#
+# The second commit here is the same finding at a different hash: scrubbing
+# an unrelated leaked DRPC_API_KEY out of this branch's history (git
+# filter-repo, 2026-11-24, see the security incident writeup) rewrote every
+# commit downstream of it, including this one, so its old hash no longer
+# matches. Content unchanged — same public key, same already-removed widget.
 [[allowlists]]
 description = "Vivid widget browser key, removed 2026-08-23"
-commits = ["911f62379e0eac985535e4755af4e31797a064b5"]
+commits = [
+  "911f62379e0eac985535e4755af4e31797a064b5",
+  "c200ea354f68bd4cf8b7a6b6df9b33d61d7c4f38",
+]
