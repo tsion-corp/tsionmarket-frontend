@@ -1860,6 +1860,8 @@
     "verifyFailed": "Wir konnten dieses Konto nicht verifizieren",
     "continueAnyway": "Trotzdem fortfahren",
     "fundFailedBody": "Der Auftrag ist angelegt, aber dein Geld hat die Wallet nicht verlassen.",
+    "toastUnconfirmed": "Gesendet — Bestätigung läuft…",
+    "fundUnconfirmedBody": "Deine Überweisung wurde gesendet und ist möglicherweise schon unterwegs. Wir bestätigen das gerade — bitte nicht erneut senden.",
     "done": "Fertig",
     "trackLater": "Später verfolgen",
     "statusTitle": "Zahlungsstatus",

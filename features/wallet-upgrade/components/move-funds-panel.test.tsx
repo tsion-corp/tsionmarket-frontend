@@ -10,6 +10,7 @@ const NEW_SOL = "HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk";
 
 const mutate = vi.fn();
 let scanData: { plan: ReturnType<typeof planMove>; missing: string[] } | undefined;
+let scanFetching = false;
 
 vi.mock("../hooks/use-decane-account", () => ({
   useDecaneAccount: () => ({ authenticated: true, evmAddress: OLD_EVM, solanaAddress: OLD_SOL }),
@@ -19,7 +20,7 @@ vi.mock("../hooks/use-move-funds", () => ({
     data: scanData,
     isPending: false,
     isError: false,
-    isFetching: false,
+    isFetching: scanFetching,
     refetch: vi.fn(),
   }),
   useRunMove: () => ({ mutate, isPending: false, error: null, data: undefined }),
@@ -30,6 +31,7 @@ import { MoveFundsPanel } from "./move-funds-panel";
 afterEach(() => {
   cleanup();
   mutate.mockClear();
+  scanFetching = false;
 });
 
 const tok = (over: Partial<TokenBalance>): TokenBalance =>
@@ -157,5 +159,19 @@ describe("MoveFundsPanel", () => {
     );
     expect(screen.getByRole("alert")).toHaveTextContent(/different current account/i);
     expect(screen.queryByRole("button")).toBeNull();
+  });
+
+  // Regression for the double-send gap (docs/2026-11-24-balance-sending-auth-nav-audit.md §2):
+  // after a run, the scan is refetched; until it lands, the button would
+  // resubmit the stale plan and could resend transfers that already landed.
+  it("will not resubmit while the post-run rescan is still in flight", () => {
+    mount(false);
+    scanFetching = true;
+    cleanup();
+    render(<MoveFundsPanel config={config(false)} linked={linked} destinations={destinations} />);
+    fireEvent.click(screen.getByRole("checkbox"));
+    expect(screen.queryByRole("button", { name: /move \$35\.00/i })).toBeNull();
+    for (const button of screen.getAllByRole("button")) fireEvent.click(button);
+    expect(mutate).not.toHaveBeenCalled();
   });
 });

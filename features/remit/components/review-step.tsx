@@ -12,6 +12,7 @@ import {
   useRampOrder,
 } from "@/features/remit/hooks/use-offramp";
 import { useSendToken } from "@/hooks/use-withdraw";
+import { isSubmittedEvmOperationError } from "@/lib/trade/sponsor";
 import { formatAmount } from "@/lib/trade/math";
 import { friendlyError } from "@/lib/errors";
 import { maskNumber } from "@/features/remit/lib/cross-border";
@@ -38,8 +39,12 @@ interface ReviewStepProps {
 // The send is a small machine, not a pile of booleans: idle -> creating (the
 // order) -> funding (the USDC transfer) -> tracking (the payout poll). A
 // funding failure lands in fundFailed with the order kept, so retrying sends
-// to the SAME deposit address instead of minting a fresh order.
-type SendPhase = "idle" | "creating" | "funding" | "fundFailed" | "tracking";
+// to the SAME deposit address instead of minting a fresh order. fundUnconfirmed
+// is different from fundFailed: the sponsored send reached the bundler and may
+// already have landed, so there is no retry button for it — resending here
+// would risk paying the deposit address twice (ADR: see
+// lib/trade/sponsor.ts's SubmittedEvmOperationError).
+type SendPhase = "idle" | "creating" | "funding" | "fundFailed" | "fundUnconfirmed" | "tracking";
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -138,6 +143,16 @@ export function ReviewStep({ form, onBack, onDone }: ReviewStepProps) {
       setPhase("tracking");
       toast.success(t("toastSent"), { id: toastId });
     } catch (e) {
+      // Only the sponsored sender can prove a request reached the bundler: it
+      // wraps failures after eth_sendUserOperation returned a hash. That case
+      // may have already succeeded, so it must never offer the same Retry
+      // button as an ordinary failure — resending would pay the deposit
+      // address twice.
+      if (isSubmittedEvmOperationError(e)) {
+        setPhase("fundUnconfirmed");
+        toast.info(t("toastUnconfirmed"), { id: toastId });
+        return;
+      }
       // The order exists but its deposit is unfunded; keep it so a retry pays
       // the same address instead of creating a duplicate order.
       setPhase("fundFailed");
@@ -287,6 +302,12 @@ export function ReviewStep({ form, onBack, onDone }: ReviewStepProps) {
           >
             {t("retry")}
           </button>
+        </div>
+      ) : null}
+
+      {phase === "fundUnconfirmed" ? (
+        <div className="border-accent/30 bg-accent/10 mt-4 rounded-[14px] border p-3.5 text-[12.5px] leading-[1.5] font-normal text-white/80">
+          {t("fundUnconfirmedBody")}
         </div>
       ) : null}
 
