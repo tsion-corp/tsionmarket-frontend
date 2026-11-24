@@ -22,7 +22,7 @@ function batchAnswer(result: unknown) {
 }
 
 const ZERODEV_URL = "https://rpc.zerodev.app/api/v3/test-project-id-123/chain/8453";
-const ALCHEMY_URL = "https://base-mainnet.g.alchemy.com/v2/alchemy-key";
+const DRPC_URL = "https://lb.drpc.live/base/drpc-test-key";
 const calledUrls = () => vi.mocked(fetch).mock.calls.map((call) => String(call[0]));
 
 describe("ZeroDev EVM RPC reads", () => {
@@ -30,6 +30,7 @@ describe("ZeroDev EVM RPC reads", () => {
     vi.resetModules();
     vi.stubEnv("ZERODEV_PROJECT_ID", "test-project-id-123");
     vi.stubEnv("ALCHEMY_API_KEY", "alchemy-key");
+    vi.stubEnv("DRPC_API_KEY", "drpc-test-key");
     vi.stubGlobal("fetch", vi.fn());
   });
 
@@ -90,9 +91,9 @@ describe("ZeroDev EVM RPC reads", () => {
   });
 
   // The proxy reads through the same pool as the server sweep: a ZeroDev rate
-  // limit or an unserved chain moves the read to the Alchemy key pool instead
+  // limit or an unserved chain moves the read to dRPC instead
   // of failing every balance on screen (ADR-2026-09-09-portfolio-refresh-scope).
-  it("falls back to Alchemy when ZeroDev is rate limited", async () => {
+  it("falls back to dRPC when ZeroDev is rate limited", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(rpcResponse({ error: "rate limited" }, 429))
       .mockImplementationOnce(batchAnswer("0x5"));
@@ -103,11 +104,11 @@ describe("ZeroDev EVM RPC reads", () => {
       params: [`0x${"12".repeat(32)}`],
     });
 
-    expect(calledUrls()).toEqual([ZERODEV_URL, ALCHEMY_URL]);
+    expect(calledUrls()).toEqual([ZERODEV_URL, DRPC_URL]);
     expect(result).toMatchObject({ status: 200, payload: { id: 7, result: "0x5" } });
   });
 
-  it("keeps ZeroDev out for a while after a rate limit and reads from Alchemy meanwhile", async () => {
+  it("keeps ZeroDev out for a while after a rate limit and reads from dRPC meanwhile", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(rpcResponse({ error: "rate limited" }, 429))
       .mockImplementation(batchAnswer("0x6"));
@@ -120,11 +121,11 @@ describe("ZeroDev EVM RPC reads", () => {
     });
     const next = await forwardEvmRpcRead(base, { id: 2, method: "eth_blockNumber" });
 
-    expect(calledUrls()).toEqual([ZERODEV_URL, ALCHEMY_URL, ALCHEMY_URL]);
+    expect(calledUrls()).toEqual([ZERODEV_URL, DRPC_URL, DRPC_URL]);
     expect(next).toMatchObject({ status: 200, payload: { id: 2, result: "0x6" } });
   });
 
-  it("falls back to Alchemy for a chain ZeroDev does not serve", async () => {
+  it("falls back to dRPC for a chain ZeroDev does not serve", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(
         new Response("No API provider supports the requested chainId", { status: 400 })
@@ -133,7 +134,7 @@ describe("ZeroDev EVM RPC reads", () => {
     const { forwardEvmRpcRead } = await import("./evm-rpc");
     const result = await forwardEvmRpcRead(base, { id: 3, method: "eth_blockNumber" });
 
-    expect(calledUrls()).toEqual([ZERODEV_URL, ALCHEMY_URL]);
+    expect(calledUrls()).toEqual([ZERODEV_URL, DRPC_URL]);
     expect(result).toMatchObject({ status: 200, payload: { id: 3, result: "0x7" } });
   });
 
@@ -169,7 +170,7 @@ describe("ZeroDev EVM RPC reads", () => {
     expect(result.payload).toMatchObject({ id: 8, error: { message: "execution reverted" } });
   });
 
-  it("reads through Alchemy when ZeroDev is not configured", async () => {
+  it("reads through dRPC when ZeroDev is not configured", async () => {
     vi.stubEnv("ZERODEV_PROJECT_ID", "");
     vi.mocked(fetch).mockImplementationOnce(batchAnswer("0x8"));
     const { forwardEvmRpcRead } = await import("./evm-rpc");
@@ -179,17 +180,18 @@ describe("ZeroDev EVM RPC reads", () => {
       params: [`0x${"34".repeat(32)}`],
     });
 
-    expect(calledUrls()).toEqual([ALCHEMY_URL]);
+    expect(calledUrls()).toEqual([DRPC_URL]);
     expect(result).toMatchObject({ status: 200, payload: { id: 9, result: "0x8" } });
   });
 
-  it("fails closed when no read provider is configured at all", async () => {
+  it("fails closed for a chain neither ZeroDev nor dRPC can serve", async () => {
     vi.stubEnv("ZERODEV_PROJECT_ID", "");
-    vi.stubEnv("ALCHEMY_API_KEY", "");
+    const unserved = getSponsoredEvmChainByNetwork("shape-mainnet");
+    if (!unserved) throw new Error("Shape registry entry is missing");
     const { forwardEvmRpcRead } = await import("./evm-rpc");
-    await expect(forwardEvmRpcRead(base, { id: 10, method: "eth_blockNumber" })).rejects.toThrow(
-      /No read provider/
-    );
+    await expect(
+      forwardEvmRpcRead(unserved, { id: 10, method: "eth_blockNumber" })
+    ).rejects.toThrow(/No read provider/);
     expect(fetch).not.toHaveBeenCalled();
   });
 });

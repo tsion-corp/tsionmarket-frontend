@@ -1,17 +1,17 @@
 import "server-only";
 import { zeroDevRpcUrl } from "@/lib/server/zerodev";
-import { alchemyFetch, hasAlchemyKey } from "@/lib/server/alchemy-keys";
+import { drpcUrl } from "@/lib/server/drpc";
 
 /**
- * Standard JSON-RPC reads through the read pool: ZeroDev first, the Alchemy
- * key pool when ZeroDev cannot serve the chain or the method.
+ * Standard JSON-RPC reads through the read pool: ZeroDev first, dRPC
+ * when ZeroDev cannot serve the chain or the method.
  *
  * Probed on 2026-09-07 with the project in use: ZeroDev answers plain reads
  * on 24 of our 28 networks and HTTP 400 "No API provider supports the
  * requested chainId" on the other four; per method it may answer "Method not
  * found" or "not whitelisted" depending on which provider it routed to. A
  * chain or method it cannot serve is remembered for a cooldown, so the next
- * read goes straight to Alchemy instead of paying for the same refusal; a
+ * read goes straight to dRPC instead of paying for the same refusal; a
  * 429 backs the whole provider off for a minute; any other failure falls
  * through for this one call. Nothing is ever retried against the same
  * provider. See ADR-2026-09-07-portfolio-balances-via-multicall.
@@ -30,7 +30,7 @@ export interface RpcEnvelope {
 }
 
 const ZERODEV_TIMEOUT_MS = 8_000;
-const ALCHEMY_TIMEOUT_MS = 12_000;
+const DRPC_TIMEOUT_MS = 12_000;
 export const UNSUPPORTED_COOLDOWN_MS = 10 * 60_000;
 export const RATE_LIMIT_BACKOFF_MS = 60_000;
 const FAILURE_BACKOFF_MS = 2_000;
@@ -135,13 +135,13 @@ async function fromZeroDev(
       response = await send();
     }
   } catch (error) {
-    console.warn(`evm-read: ZeroDev unreachable for chain ${chainId}; using Alchemy`, error);
+    console.warn(`evm-read: ZeroDev unreachable for chain ${chainId}; using dRPC`, error);
     return null;
   }
 
   if (response.status === 429) {
     zeroDevBackoffUntil = Date.now() + RATE_LIMIT_BACKOFF_MS;
-    console.warn(`evm-read: ZeroDev rate limited; Alchemy for ${RATE_LIMIT_BACKOFF_MS / 1000}s`);
+    console.warn(`evm-read: ZeroDev rate limited; dRPC for ${RATE_LIMIT_BACKOFF_MS / 1000}s`);
     return null;
   }
   if (!response.ok) {
@@ -151,11 +151,11 @@ async function fromZeroDev(
       // else is either transient or a request of ours, and neither should
       // park the chain, let alone the provider: fall through for this call.
       zeroDevSkipUntil.set(chainId, Date.now() + UNSUPPORTED_COOLDOWN_MS);
-      console.warn(`evm-read: ZeroDev does not serve chain ${chainId}; Alchemy for 10 min`);
+      console.warn(`evm-read: ZeroDev does not serve chain ${chainId}; dRPC for 10 min`);
     } else {
       if (response.status >= 500) zeroDevSkipUntil.set(chainId, Date.now() + FAILURE_BACKOFF_MS);
       console.warn(
-        `evm-read: ZeroDev answered ${response.status} for chain ${chainId} (${body}); using Alchemy`
+        `evm-read: ZeroDev answered ${response.status} for chain ${chainId} (${body}); using dRPC`
       );
     }
     return null;
@@ -167,7 +167,7 @@ async function fromZeroDev(
     !(payload && typeof payload === "object" && "jsonrpc" in payload)
   ) {
     console.warn(
-      `evm-read: ZeroDev answered a non-JSON-RPC body for chain ${chainId} (${JSON.stringify(payload).slice(0, 200)}); using Alchemy`
+      `evm-read: ZeroDev answered a non-JSON-RPC body for chain ${chainId} (${JSON.stringify(payload).slice(0, 200)}); using dRPC`
     );
     return null;
   }
@@ -176,7 +176,7 @@ async function fromZeroDev(
   if (unserved) {
     zeroDevSkipUntil.set(chainId, Date.now() + UNSUPPORTED_COOLDOWN_MS);
     console.warn(
-      `evm-read: ZeroDev's provider for chain ${chainId} lacks a method (${unserved.message}); Alchemy for 10 min`
+      `evm-read: ZeroDev's provider for chain ${chainId} lacks a method (${unserved.message}); dRPC for 10 min`
     );
     return null;
   }
@@ -193,14 +193,16 @@ export async function readEvm(
   const zeroDev = await fromZeroDev(chainId, batch);
   if (zeroDev) return zeroDev;
 
-  if (!hasAlchemyKey()) throw new Error(`No read provider can serve ${network}`);
-  const response = await alchemyFetch((key) => `https://${network}.g.alchemy.com/v2/${key}`, {
+  const url = drpcUrl(network);
+  if (!url) throw new Error(`No read provider can serve ${network}`);
+  const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(batch),
-    signal: AbortSignal.timeout(ALCHEMY_TIMEOUT_MS),
+    signal: AbortSignal.timeout(DRPC_TIMEOUT_MS),
     cache: "no-store",
   });
+  if (!response.ok) throw new Error(`dRPC request failed for ${network}: ${response.status}`);
   return inCallOrder(await response.json(), batch);
 }
 
