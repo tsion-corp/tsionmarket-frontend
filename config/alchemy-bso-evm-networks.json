@@ -18,8 +18,9 @@
     "policyNetwork": "BASE_MAINNET",
     "alchemyHost": "base-mainnet.g.alchemy.com",
     "chainKey": "base",
-    "sponsorshipMode": "bso",
-    "gasPolicy": true
+    "sponsorshipMode": "paymaster",
+    "gasPolicy": true,
+    "provider": "pimlico"
   },
   {
     "network": "base-sepolia",
