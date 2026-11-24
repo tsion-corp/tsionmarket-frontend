@@ -3,21 +3,21 @@
 import { useTranslations } from "next-intl";
 import { useAppModals } from "@/components/layout/modals/app-modals";
 import { usePortfolio } from "@/hooks/use-portfolio";
-import { baseGasIsLow, baseGasUsd } from "@/lib/trade/gas-reserve";
+import { baseGasIsLow, baseGasIsUserPaid, baseGasUsd } from "@/lib/trade/gas-reserve";
 import { formatUsd } from "@/lib/trade/math";
 
 /**
- * Base sends are no longer gas-sponsored, so every wallet needs a little ETH
- * on Base to pay for them (lib/trade/gas-reserve.ts). This shows that balance
- * and, once it's low, a one-tap way to add more — the automatic top-up
- * (components/layout/gas-topup-host.tsx) otherwise tops it up from deposits.
+ * The wallet's ETH on Base and, once it's low, a one-tap way to add more.
+ * Shown only while Base sends are user-paid (lib/trade/gas-reserve.ts): with
+ * Base sponsored, as it is today, the user's ETH never pays for a send, so
+ * the notice would only alarm people.
  */
 export function GasBalanceNotice() {
   const t = useTranslations("portfolio");
   const appModals = useAppModals();
   const portfolio = usePortfolio();
 
-  if (portfolio.loading) return null;
+  if (portfolio.loading || !baseGasIsUserPaid()) return null;
   const usd = baseGasUsd(portfolio.tokens);
   const low = baseGasIsLow(portfolio.tokens);
 

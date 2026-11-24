@@ -147,9 +147,9 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
   const minUsd = minimumBuyUsd(isSolanaChainId(route?.destinationChainId));
   const belowMin = belowMinimumBuy(value, isSolanaChainId(route?.destinationChainId));
 
-  // A buy is always a USDC send on Base. That used to be free (EIP-7702
-  // through our bundler) on every account; now that Base sends are
-  // user-paid, the wallet needs a little of its own ETH there too.
+  // A buy is always a USDC send on Base. While Base is gas-sponsored (EIP-7702
+  // through our bundler) it needs no ETH; if sponsorship is switched off, the
+  // wallet pays its own gas, so the buy is held back until it has enough.
   const baseSponsored = hasGasPolicyForNetwork(BASE_NETWORK);
   const baseNativeBalance = useMemo(
     () =>

@@ -945,8 +945,7 @@
     "arkStoreAria": "Hol dir unsere App im ArkStore",
     "valuationUnavailable": "Bewertung nicht verfügbar",
     "gasBalanceLabel": "Gas-Guthaben (Base)",
-    "gasBalanceLowTitle": "Dein Gas-Guthaben ist niedrig",
-    "gasBalanceLowBody": "Halte etwas ETH auf Base, damit deine Sendungen und Käufe durchgeführt werden können. Wir füllen dies automatisch aus deinen Einzahlungen auf, wenn möglich.",
+    "gasBalanceLowBody": "Sendungen auf Base brauchen etwas ETH auf Base für die Gebühren. Füge etwas hinzu, damit Sendungen und Käufe durchgehen.",
     "gasBalanceTopUp": "ETH hinzufügen"
   },
   "markets": {
