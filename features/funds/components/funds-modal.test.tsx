@@ -10,6 +10,9 @@ vi.mock("@/features/funds/components/crypto-deposit-screen", () => ({
 vi.mock("@/features/funds/components/bank-transfer-screen", () => ({
   BankTransferScreen: () => <div>bank screen</div>,
 }));
+vi.mock("@/features/funds/components/paycrest-deposit-screen", () => ({
+  PaycrestDepositScreen: () => <div>paycrest deposit screen</div>,
+}));
 vi.mock("@/features/funds/components/add-wsk-screen", () => ({
   AddWskScreen: () => <div>usdc kash screen</div>,
 }));
@@ -48,5 +51,11 @@ describe("FundsModal", () => {
     fireEvent.click(screen.getByText("Add Kash"));
     fireEvent.click(screen.getByText("Pay with USDC"));
     expect(screen.getByText("usdc kash screen")).toBeInTheDocument();
+  });
+
+  it("sends the bank tile to Paycrest, the bank rail for deposits", () => {
+    render(<FundsModal onClose={vi.fn()} />);
+    fireEvent.click(screen.getByText("bankTitle"));
+    expect(screen.getByText("paycrest deposit screen")).toBeInTheDocument();
   });
 });
