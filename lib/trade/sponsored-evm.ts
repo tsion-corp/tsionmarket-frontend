@@ -12,9 +12,14 @@ export interface SponsoredEvmChainConfig {
   chain: Chain;
   supportsReceiptPolling: boolean;
   sponsorshipMode: "bso" | "paymaster";
-  // Whether an Alchemy Gas Manager policy is configured for this network.
-  // Registry membership alone only means the app knows how to read the chain.
+  // Whether a gas policy is configured for this network, regardless of
+  // which bundler provider holds it. Registry membership alone only means
+  // the app knows how to read the chain.
   gasPolicy: boolean;
+  // Which bundler proxy a sponsored send for this network goes through.
+  // Alchemy reads (the ordinary RPC proxy, `alchemyHost`) are unaffected by
+  // this — only the bundler/paymaster traffic moves.
+  bundlerProvider: "alchemy" | "pimlico";
 }
 
 interface SponsoredEvmRegistryEntry {
@@ -31,6 +36,7 @@ interface SponsoredEvmRegistryEntry {
   };
   gasPolicy?: boolean;
   sponsorshipMode?: "bso" | "paymaster";
+  provider?: "alchemy" | "pimlico";
 }
 
 function chainFromRegistryEntry(entry: SponsoredEvmRegistryEntry): Chain {
@@ -70,6 +76,7 @@ export const SPONSORED_EVM_CHAINS: readonly SponsoredEvmChainConfig[] = (
     supportsReceiptPolling: entry.chainKey !== null,
     sponsorshipMode: entry.sponsorshipMode ?? "bso",
     gasPolicy: entry.gasPolicy ?? false,
+    bundlerProvider: entry.provider ?? "alchemy",
   };
 });
 
