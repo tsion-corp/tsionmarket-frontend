@@ -1,5 +1,5 @@
 import "server-only";
-import { alchemyUrls } from "@/lib/server/alchemy-keys";
+import { drpcUrl } from "@/lib/server/drpc";
 import { heliusSolanaRpcUrls } from "@/lib/server/helius";
 
 const PUBLIC_SOLANA_RPC = "https://api.mainnet-beta.solana.com";
@@ -23,7 +23,7 @@ export function solanaRpcUpstreams(): string[] {
   return [
     custom,
     ...heliusSolanaRpcUrls(),
-    ...alchemyUrls((key) => `https://solana-mainnet.g.alchemy.com/v2/${key}`),
+    drpcUrl("solana-mainnet"),
     legacyAlchemy,
     PUBLIC_SOLANA_RPC,
   ].filter((url, index, all): url is string => Boolean(url) && all.indexOf(url) === index);

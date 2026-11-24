@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// The read pool for portfolio balances: ZeroDev first, Alchemy when ZeroDev
+// The read pool for portfolio balances: ZeroDev first, dRPC when ZeroDev
 // cannot serve the chain or the method, with the failure remembered so the
 // next read does not pay for the same answer. Verified against ZeroDev on
 // 2026-09-07: four of our networks answer HTTP 400 "No API provider supports
@@ -26,6 +26,7 @@ describe("readEvm provider order", () => {
     vi.resetModules();
     vi.stubEnv("ZERODEV_PROJECT_ID", "test-project-id-123");
     vi.stubEnv("ALCHEMY_API_KEY", "alchemy-key");
+    vi.stubEnv("DRPC_API_KEY", "drpc-test-key");
     vi.stubGlobal("fetch", vi.fn());
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-07T12:00:00Z"));
@@ -67,7 +68,7 @@ describe("readEvm provider order", () => {
     expect(urlOf(vi.mocked(fetch).mock.calls[0])).toContain("/chain/8453");
   });
 
-  it("falls through to Alchemy when ZeroDev has no provider for the chain, and skips ZeroDev next time", async () => {
+  it("falls through to dRPC when ZeroDev has no provider for the chain, and skips ZeroDev next time", async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(
         json(400, { error: "No API provider supports the requested chainId." })
@@ -76,15 +77,13 @@ describe("readEvm provider order", () => {
       .mockResolvedValueOnce(json(200, [{ jsonrpc: "2.0", id: 1, result: "0x21" }]));
     const { readEvm } = await import("./evm-read");
 
-    expect((await readEvm("zora-mainnet", 7777777, CALLS))[0].result).toBe("0x20");
-    expect(urlOf(vi.mocked(fetch).mock.calls[1])).toBe(
-      "https://zora-mainnet.g.alchemy.com/v2/alchemy-key"
-    );
+    expect((await readEvm("berachain-mainnet", 80094, CALLS))[0].result).toBe("0x20");
+    expect(urlOf(vi.mocked(fetch).mock.calls[1])).toContain("https://lb.drpc.live/berachain/");
 
-    expect((await readEvm("zora-mainnet", 7777777, CALLS))[0].result).toBe("0x21");
+    expect((await readEvm("berachain-mainnet", 80094, CALLS))[0].result).toBe("0x21");
     // Second read: no ZeroDev attempt.
     expect(fetch).toHaveBeenCalledTimes(3);
-    expect(urlOf(vi.mocked(fetch).mock.calls[2])).toContain("g.alchemy.com");
+    expect(urlOf(vi.mocked(fetch).mock.calls[2])).toContain("lb.drpc.live/");
   });
 
   it("treats a method ZeroDev's provider does not serve the same way", async () => {
@@ -96,7 +95,7 @@ describe("readEvm provider order", () => {
     const { readEvm } = await import("./evm-read");
 
     expect((await readEvm("monad-mainnet", 143, CALLS))[0].result).toBe("0x30");
-    expect(urlOf(vi.mocked(fetch).mock.calls[1])).toContain("monad-mainnet.g.alchemy.com");
+    expect(urlOf(vi.mocked(fetch).mock.calls[1])).toContain("lb.drpc.live/monad-mainnet/");
   });
 
   it("backs ZeroDev off for a minute after a 429 and asks again afterwards", async () => {
@@ -108,9 +107,9 @@ describe("readEvm provider order", () => {
     const { readEvm } = await import("./evm-read");
 
     await readEvm("base-mainnet", 8453, CALLS);
-    await readEvm("arb-mainnet", 42161, CALLS); // inside the minute: Alchemy directly
+    await readEvm("arb-mainnet", 42161, CALLS); // inside the minute: dRPC directly
     expect(fetch).toHaveBeenCalledTimes(3);
-    expect(urlOf(vi.mocked(fetch).mock.calls[2])).toContain("arb-mainnet.g.alchemy.com");
+    expect(urlOf(vi.mocked(fetch).mock.calls[2])).toContain("lb.drpc.live/arbitrum/");
 
     vi.setSystemTime(new Date("2026-09-07T12:01:01Z"));
     await readEvm("base-mainnet", 8453, CALLS);
@@ -155,7 +154,7 @@ describe("readEvm provider order", () => {
     const { readEvm } = await import("./evm-read");
 
     expect((await readEvm("base-mainnet", 8453, CALLS))[0].result).toBe("0x60");
-    expect(urlOf(vi.mocked(fetch).mock.calls[1])).toContain("base-mainnet.g.alchemy.com");
+    expect(urlOf(vi.mocked(fetch).mock.calls[1])).toContain("lb.drpc.live/base/");
     // Another chain, same instant: still ZeroDev.
     expect((await readEvm("arb-mainnet", 42161, CALLS))[0].result).toBe("0x61");
     expect(urlOf(vi.mocked(fetch).mock.calls[2])).toContain("rpc.zerodev.app");
@@ -185,10 +184,10 @@ describe("readEvm provider order", () => {
       .mockResolvedValueOnce(json(200, [{ jsonrpc: "2.0", id: 1, result: "0x81" }]));
     const { readEvm } = await import("./evm-read");
 
-    await readEvm("mythos-mainnet", 42018, CALLS);
-    await readEvm("mythos-mainnet", 42018, CALLS);
+    await readEvm("apechain-mainnet", 33139, CALLS);
+    await readEvm("apechain-mainnet", 33139, CALLS);
     expect(fetch).toHaveBeenCalledTimes(3);
-    expect(urlOf(vi.mocked(fetch).mock.calls[2])).toContain("mythos-mainnet.g.alchemy.com");
+    expect(urlOf(vi.mocked(fetch).mock.calls[2])).toContain("lb.drpc.live/apechain/");
   });
 });
 
@@ -202,6 +201,7 @@ describe("a dead pooled HTTP/2 connection", () => {
     vi.resetModules();
     vi.stubEnv("ZERODEV_PROJECT_ID", "test-project-id-123");
     vi.stubEnv("ALCHEMY_API_KEY", "alchemy-key");
+    vi.stubEnv("DRPC_API_KEY", "drpc-test-key");
     vi.stubGlobal("fetch", vi.fn());
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-07T12:00:00Z"));
