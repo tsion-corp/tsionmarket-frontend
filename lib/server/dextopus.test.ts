@@ -121,3 +121,60 @@ describe("dextopusRequest retries", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+// Seen in production 2026-11-27: DEXTOPUS_WITHDRAW_API_KEY named an integration
+// Dextopus had deactivated, so every withdrawal call answered 401 "Invalid or
+// inactive API key" and Send could not even list tokens — while the deposit key
+// worked. A dead purpose key must not take the whole flow down.
+describe("dextopusRequest with a rejected purpose key", () => {
+  const rejected = () =>
+    new Response(
+      JSON.stringify({
+        success: false,
+        error: "Unauthorized",
+        message: "Invalid or inactive API key",
+      }),
+      { status: 401, headers: { "content-type": "application/json" } }
+    );
+  const ok = () => new Response(JSON.stringify({ success: true }), { status: 200 });
+  const keyOf = (call: unknown[]) =>
+    ((call[1] as RequestInit).headers as Record<string, string>)["x-api-key"];
+
+  it("retries once with DEXTOPUS_API_KEY when the withdrawal key is inactive", async () => {
+    process.env.DEXTOPUS_WITHDRAW_API_KEY = "dead-withdraw-key";
+    const fetchMock = vi.fn().mockResolvedValueOnce(rejected()).mockResolvedValueOnce(ok());
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await dextopusRequest("deposit/destinations", {
+      method: "GET",
+      purpose: "withdrawal",
+    });
+
+    expect(res.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(keyOf(fetchMock.mock.calls[0])).toBe("dead-withdraw-key");
+    expect(keyOf(fetchMock.mock.calls[1])).toBe("test-key");
+  });
+
+  it("does not retry when the deposit key itself is rejected", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(rejected());
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await dextopusRequest("deposit/destinations", {
+      method: "GET",
+      purpose: "deposit",
+    });
+
+    expect(res.status).toBe(401);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry a 401 when the purpose already uses DEXTOPUS_API_KEY", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(rejected());
+    vi.stubGlobal("fetch", fetchMock);
+
+    await dextopusRequest("deposit/destinations", { method: "GET", purpose: "withdrawal" });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});

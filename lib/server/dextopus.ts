@@ -67,7 +67,31 @@ export async function dextopusRequest(
   }
 ): Promise<Response> {
   const key = apiKeyFor(init.purpose);
+  const response = await send(path, init, key);
+  // A purpose-specific key Dextopus has deactivated answers 401 to everything,
+  // which took Send down entirely in production (2026-11-27) while the shared
+  // key worked. Retry once with DEXTOPUS_API_KEY so a dead purpose key degrades
+  // to the shared integration instead of breaking the flow, and say so loudly.
+  const fallback = process.env.DEXTOPUS_API_KEY;
+  if (response.status === 401 && fallback && fallback !== key) {
+    console.error(
+      `Dextopus rejected ${KEY_ENV[init.purpose]} (401); retrying ${init.method} ${path} with DEXTOPUS_API_KEY. Replace the dead key.`
+    );
+    return send(path, init, fallback);
+  }
+  return response;
+}
 
+async function send(
+  path: string,
+  init: {
+    method: "GET" | "POST";
+    query?: URLSearchParams;
+    body?: unknown;
+    revalidate?: number;
+  },
+  key: string
+): Promise<Response> {
   const url = new URL(`${DEXTOPUS_BASE}/${path}`);
   if (init.query) url.search = init.query.toString();
 
